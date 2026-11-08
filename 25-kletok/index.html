@@ -1126,134 +1126,141 @@ const isTvt=G=>!!G&&G.mode===4;
 const TV_NAME=["Оранжевые","Синие"],TV_COL=["#f28a2e","#3f86e8"];
 const tvMemb=(G,t)=>G.players.map((p,i)=>i).filter(i=>G.team[i]===t);
 const tvTeam=(G,i)=>i>=0&&G.team?G.team[i]:-1;
-function tvDrawers(G,t){const m=tvMemb(G,t);if(tvOneOn(G))return m.filter(i=>i!==G.dict1);if(!G.dict)return m;const d=G.dict[1-t];return m.filter(i=>i!==d);}
 const tvOneOn=G=>G.dict1!=null&&G.dict1>=0;
-function tvAuthor(G,t,k){const m=tvDrawers(G,t);return m.length?m[k%m.length]:-1;}
 const tvDictOn=G=>!!G.dict&&G.dict.every(x=>x>=0);
-function tvCellOf(G,i){if(i<0||G.phase!=="tdraw")return-1;const t=G.team[i],m=tvDrawers(G,t),pos=m.indexOf(i);if(pos<0)return-1;
-  if(tvOneOn(G)){if(G.seqT>=0&&t!==G.seqT)return-1;const c=G.wD;return c>=0&&c<25&&c%m.length===pos?c:-1;}
-  if(tvDictOn(G)){const c=G.wT[t];return c>=0&&c<25&&c%m.length===pos?c:-1;}
-  if(G.w<0)return-1;const k=pos+G.w*m.length;return k<25?k:-1;}
-function tvSteps(G){return Math.max(...[0,1].map(t=>Math.ceil(25/Math.max(1,tvDrawers(G,t).length))));}
+function tvDrawers(G,t){const m=tvMemb(G,t);if(tvOneOn(G))return m.filter(i=>i!==G.dict1);if(!tvDictOn(G))return m;const d=G.dict[1-t];return m.filter(i=>i!==d);}
+const tvAllDrawers=G=>[0,1].flatMap(t=>tvDrawers(G,t));
+const tvIsDrawer=(G,i)=>i>=0&&tvDrawers(G,G.team[i]).indexOf(i)>=0;
+/* Каналы слов: один общий (игра или один ведущий) или по одному на команду (ведущие из соперников) */
+const tvChOf=(G,t)=>tvDictOn(G)?t:0;
+function tvDictCh(G,i){if(i<0)return-1;if(tvOneOn(G))return i===G.dict1?0:-1;if(tvDictOn(G))return G.dict.indexOf(i);return-1;}
+function tvCur(G,t){const c=G.chs[tvChOf(G,t)].c;if(G.seqT>=0){if(t===0)return G.seqT===0?c:25;return G.seqT===1?c:-1;}return c;}
+function tvCellOf(G,i){if(i<0||G.phase!=="tdraw"||!tvIsDrawer(G,i))return-1;const c=tvCur(G,G.team[i]);return c>=0&&c<25?c:-1;}
+function tvMyCh(G,me){const d=tvDictCh(G,me);if(d>=0)return d;return me>=0?tvChOf(G,G.team[me]):0;}
+function tvDur(G,c){return G.accel?Math.max(3,G.pace-Math.floor(Math.max(0,c)/2)):G.pace;}
+const tvNow=G=>G.paused&&G.pauseAt?G.pauseAt:Date.now();
+function tvLeft(G,x){const C=G.chs[x];if(!C||C.c<0||C.c>=25)return{left:0,dur:1,cd:0};const dur=tvDur(G,C.c)*1000,el=tvNow(G)-C.at;return{left:Math.max(0,Math.min(dur,dur-el)),dur,cd:el<0?Math.ceil(-el/1000):0};}
 function tvPicker(G,t){const m=tvMemb(G,t),T=G.tg[t];return m.length?m[T.pick%m.length]:-1;}
 function tvShuffle(n,seed){const a=[...Array(n).keys()],r=rng(seed);for(let i=n-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function tvMixOrder(G,o,seed){const m=Math.max(1,tvDrawers(G,o).length),sh=tvShuffle(25,seed),groups=[...Array(m)].map(()=>[]);sh.forEach(k=>groups[k%m].push(k));
-  const r=rng(seed+99),start=Math.floor(r()*m),out=[];for(let i=0;out.length<25;i++){const g=groups[(start+i)%m];if(g.length)out.push(g.shift());}return out;}
+function tvQn(G,nb){return G.qOpt?Math.min(25,G.qOpt):Math.min(25,Math.max(6,Math.ceil(20/Math.max(1,nb))));}
+/* Вопросы: с каждого поля соперника берём несколько слов и перемешиваем вопросы между полями */
+function tvMakeList(G,t,seed){const bs=tvDrawers(G,1-t),q=tvQn(G,bs.length),r=rng(seed),per=bs.map(b=>tvShuffle(25,seed+b*101+7).slice(0,q).map(k=>({b,k})));
+  const out=[];let last=-1;while(per.some(a=>a.length)){let c=per.map((a,j)=>j).filter(j=>per[j].length&&j!==last);if(!c.length)c=per.map((a,j)=>j).filter(j=>per[j].length);const j=c[Math.floor(r()*c.length)];out.push(per[j].shift());last=j;}return out;}
+const tvKey=(b,k)=>b+":"+k;
+const tvQ=T=>T.list[Math.min(T.qi,T.list.length-1)]||null;
 function makeTvt(players,o){
   const G={mode:4,gid:Math.random().toString(36).slice(2,9),players:players.map(p=>({pid:p.pid||"",name:p.name})),team:players.map((_,i)=>i%2),
     rounds:Math.max(1,+o.times||1),round:-1,scores:players.map(()=>0),rs:players.map(()=>0),selfPlay:true,n:25,ws:[""],asked:[0],pend:null,turn:0,hist:[],
-    pace:Math.max(4,+o.pace||9),accel:+(o.tvFast??1)?1:0,turnT:+o.turnT||45,dictOpt:+o.tvDict||0,tvL:[String(o.tvL0||""),String(o.tvL1||"")],dOff:[Math.floor(Math.random()*10),Math.floor(Math.random()*10)],pack:+o.pack||0,lvl0:+o.lvl0||1,custom:parseCustom(o.custom),gseed:1000+Math.floor(Math.random()*9000),usedIds:{},usedW:[],paused:false,lvl:1};
+    pace:Math.max(3,+o.pace||9),accel:+(o.tvFast??1)?1:0,turnT:+o.turnT||45,dictOpt:+o.tvDict||0,qOpt:+o.tvQ||0,dOff:[Math.floor(Math.random()*10),Math.floor(Math.random()*10)],pack:+o.pack||0,lvl0:+o.lvl0||1,custom:parseCustom(o.custom),gseed:1000+Math.floor(Math.random()*9000),usedIds:{},usedW:[],paused:false,pauseAt:0,lvl:1};
   tvRound(G);return G;
 }
 function tvRound(G){
   G.round++;const lv=G.pack||Math.min(4,G.lvl0+G.round);G.lvl=lv;G.wsT=[0,1].map(()=>{const t={n:25,usedIds:G.usedIds,gseed:G.gseed,custom:[]};pickRoundWords(t,lv);const used=new Set(G.usedW.map(normW));let ws=t.ws.filter(w=>!used.has(normW(w)));
     if(ws.length<25){if(!ALLW)ALLW=[...new Set([1,2,3,4,99].flatMap(k=>BANK[k]||[]))];for(const w of ALLW){if(ws.length>=25)break;if(!used.has(normW(w))&&!ws.includes(w))ws.push(w);}}ws=ws.slice(0,25);G.usedW.push(...ws);return ws;});
-  G.dict=null;G.dict1=-1;G.wD=-1;
-  G.seqT=-1;
+  G.dict=null;G.dict1=-1;G.seqT=-1;
   if(G.dictOpt===2||G.dictOpt===3){const cand=G.players.map((_,i)=>i).filter(i=>tvMemb(G,G.team[i]).length>=2);if(cand.length){G.dict1=cand[(G.dOff[0]+G.round)%cand.length];if(G.dictOpt===2)G.wsT[1]=G.wsT[0].slice();else G.seqT=0;}}
   else if(G.dictOpt===1&&[0,1].every(t=>tvMemb(G,t).length>=2)){G.dict=[0,1].map(t=>{const m=tvMemb(G,1-t);return m[(G.dOff[1-t]+G.round)%m.length];});}
-  G.wT=[-1,-1];
-  G.perm=[0,1].map(t=>tvShuffle(25,G.gseed*7+G.round*31+t*13));
-  G.tg=[0,1].map(t=>({order:tvMixOrder(G,1-t,G.gseed*3+G.round*17+t*5+1),qi:0,pick:G.round,pings:{},res:{},ok:{},streak:0,best:0,hints:1,cand:null,hintQ:-1,t0:0,done:false,last:null}));
-  G.rs=G.players.map(()=>0);G.w=-1;G.t0=0;G.goAt=0;G.goBy=-1;G.stepAt=0;G.graceAt=0;G.phase="tdraw";G.ws=[""];
+  G.chs=(tvDictOn(G)?[0,1]:[0]).map(()=>({c:-1,at:0}));
+  G.permP=G.players.map((_,i)=>tvShuffle(25,G.gseed*7+G.round*31+i*13+5));
+  G.tg=[0,1].map(t=>{const list=tvMakeList(G,t,G.gseed*3+G.round*17+t*5+1);return{list,qi:0,pick:G.round,pings:{},res:{},ok:{},streak:0,best:0,hints:Math.max(1,tvDrawers(G,1-t).length),cand:null,hintQ:-1,t0:0,done:!list.length,last:null};});
+  G.rs=G.players.map(()=>0);G.goBy=-1;G.graceAt=0;G.phase="tdraw";G.ws=[""];
 }
-function tvDur(G,w){return G.accel?Math.max(3,G.pace-Math.floor(Math.max(0,w)/2)):G.pace;}
-function tvStartGuess(G){G.phase="tguess";G.graceAt=0;const now=Date.now();G.tg.forEach(T=>{T.t0=now;});}
+function tvStartGuess(G){G.phase="tguess";G.graceAt=0;const now=Date.now();G.tg.forEach(T=>{T.t0=now;});if(G.tg.every(x=>x.done))G.phase="trev";}
 function tvResolve(G,t,pos,auto){
-  const T=G.tg[t];if(T.done||G.phase!=="tguess")return;const o=1-t,tk=T.order[T.qi],picker=tvPicker(G,t);let ok=false;
-  if(pos>=0){const k=G.perm[o][pos];ok=k===tk&&!T.ok[k];}
-  if(ok){const pts=T.hintQ===T.qi?1:2;G.scores[picker]+=pts;G.rs[picker]+=pts;const au=tvAuthor(G,o,tk);if(au>=0){G.scores[au]++;G.rs[au]++;}T.ok[tk]=1;T.streak++;T.best=Math.max(T.best,T.streak);
+  const T=G.tg[t];if(T.done||G.phase!=="tguess")return;const q=T.list[T.qi],b=q.b,tk=q.k,key=tvKey(b,tk),picker=tvPicker(G,t);
+  const ok=pos>=0&&G.permP[b][pos]===tk&&!T.ok[key];
+  if(ok){const pts=T.hintQ===T.qi?1:2;G.scores[picker]+=pts;G.rs[picker]+=pts;G.scores[b]++;G.rs[b]++;T.ok[key]=1;T.streak++;T.best=Math.max(T.best,T.streak);
     if(T.streak%3===0){G.scores[picker]++;G.rs[picker]++;}}else T.streak=0;
-  T.res[tk]={r:ok?1:2,pos,by:picker,auto:!!auto};T.last={k:tk,r:ok?1:2,by:picker,pos,n:T.qi};
-  T.qi++;T.pick++;T.pings={};T.cand=null;T.t0=Date.now();if(T.qi>=25)T.done=true;
+  T.res[key]={r:ok?1:2,pos,by:picker,auto:!!auto};T.last={b,k:tk,r:ok?1:2,by:picker,pos,n:T.qi};
+  T.qi++;T.pick++;T.pings={};T.cand=null;T.t0=Date.now();if(T.qi>=T.list.length)T.done=true;
   if(G.tg.every(x=>x.done))G.phase="trev";
 }
+function tvStartCh(G,x,now){G.chs[x]={c:0,at:now+3500};}
 function applyTvt(G,type,arg,i){
-  const t=tvTeam(G,i);
+  const t=tvTeam(G,i),now=Date.now();
+  if(G.paused&&type!=="pause")return;
   switch(type){
+    case "pause":{if(G.phase!=="tdraw"&&G.phase!=="tguess")break;if(!G.paused){G.paused=true;G.pauseAt=now;}else{const d=now-(G.pauseAt||now);G.chs.forEach(C=>{if(C.c>=0)C.at+=d;});if(G.graceAt)G.graceAt+=d;G.tg.forEach(T=>{if(T.t0)T.t0+=d;});G.paused=false;G.pauseAt=0;}break;}
     case "tgo":if(G.phase==="tdraw")tvStartGuess(G);break;
-    case "tstart":if(G.phase==="tdraw"&&!G.goAt&&!tvDictOn(G)&&!tvOneOn(G)){G.goAt=Date.now()+3500;G.goBy=i;}break;
-    case "tdnext":{if(G.phase==="tdraw"&&tvOneOn(G)&&(i===G.dict1||i<0)){if(G.wD<25)G.wD++;else if(G.seqT===0){G.seqT=1;G.wD=-1;}break;}if(G.phase!=="tdraw"||!tvDictOn(G))break;const tt=G.dict.indexOf(i);const x=tt>=0?tt:(i<0?+arg:-1);if(x<0)break;if(G.wT[x]<25)G.wT[x]++;break;}
-    case "tdprev":{if(G.phase==="tdraw"&&tvOneOn(G)&&i===G.dict1){if(G.wD>0&&G.wD<25)G.wD--;break;}if(G.phase!=="tdraw"||!tvDictOn(G))break;const x=G.dict.indexOf(i);if(x>=0&&G.wT[x]>0&&G.wT[x]<25)G.wT[x]--;break;}
-    case "tping":{if(G.phase!=="tguess"||t<0)break;const T=G.tg[t],p=+arg;if(T.done||!(p>=0&&p<25))break;if(T.ok[G.perm[1-t][p]])break;if(T.pings[i]===p)delete T.pings[i];else T.pings[i]=p;break;}
+    case "tstart":if(G.phase==="tdraw"&&!tvDictOn(G)&&!tvOneOn(G)&&G.chs[0].c<0){tvStartCh(G,0,now);G.goBy=i;}break;
+    case "tdnext":{if(G.phase!=="tdraw"||G.graceAt)break;let x=tvDictCh(G,i);if(x<0&&i<0)x=tvDictOn(G)?Math.max(0,Math.min(1,+arg||0)):0;if(x<0||(!tvDictOn(G)&&!tvOneOn(G)))break;const C=G.chs[x];
+      if(C.c<0)tvStartCh(G,x,now);else if(C.c<25){if(now<C.at)break;C.c++;C.at=now;}else if(G.seqT===0){G.seqT=1;tvStartCh(G,x,now);}break;}
+    case "tdprev":{if(G.phase!=="tdraw"||G.graceAt)break;const x=tvDictCh(G,i);if(x<0)break;const C=G.chs[x];if(C.c>0&&C.c<25&&now>=C.at){C.c--;C.at=now;}break;}
+    case "tping":{if(G.phase!=="tguess"||t<0)break;const T=G.tg[t],p=+arg;if(T.done||!(p>=0&&p<25))break;const q=tvQ(T);if(T.ok[tvKey(q.b,G.permP[q.b][p])])break;if(T.pings[i]===p)delete T.pings[i];else T.pings[i]=p;break;}
     case "tpick":{if(G.phase!=="tguess"||t<0)break;const T=G.tg[t];if(i!==tvPicker(G,t))break;const p=T.pings[i];if(p==null)break;tvResolve(G,t,p,false);break;}
-    case "thint":{if(G.phase!=="tguess"||t<0)break;const T=G.tg[t];if(T.done||T.hints<=0||T.cand)break;const o=1-t,tk=T.order[T.qi],tp=G.perm[o].indexOf(tk);
-      const pool=[...Array(25).keys()].filter(p=>p!==tp&&!T.ok[G.perm[o][p]]),r=rng(G.gseed+T.qi*7+t);const c=[tp];while(c.length<3&&pool.length)c.push(pool.splice(Math.floor(r()*pool.length),1)[0]);
+    case "thint":{if(G.phase!=="tguess"||t<0)break;const T=G.tg[t];if(T.done||T.hints<=0||T.cand)break;const q=tvQ(T),pm=G.permP[q.b],tp=pm.indexOf(q.k);
+      const pool=[...Array(25).keys()].filter(p=>p!==tp&&!T.ok[tvKey(q.b,pm[p])]),r=rng(G.gseed+T.qi*7+t);const c=[tp];while(c.length<3&&pool.length)c.push(pool.splice(Math.floor(r()*pool.length),1)[0]);
       T.cand=c.sort((a,b)=>a-b);T.hints--;T.hintQ=T.qi;break;}
     case "tnext":if(G.phase==="trev"){if(G.round+1>=G.rounds)G.phase="final";else tvRound(G);}break;
   }
 }
+/* Время считается от реальных часов: даже если вкладка ведущего долго спала, слова догоняют нужное место */
 function tvTick(G){
-  const now=Date.now();let ch=false;
-  if(G.phase==="tdraw"&&!G.paused&&(tvDictOn(G)||tvOneOn(G))){
-    if(!G.graceAt&&(tvOneOn(G)?G.wD>=25&&G.seqT<=0&&!(G.seqT===0):G.wT.every(x=>x>=25))){G.graceAt=now;ch=true;}
-    if(!G.graceAt&&tvOneOn(G)&&G.seqT===1&&G.wD>=25){G.graceAt=now;ch=true;}
-    if(G.graceAt&&now-G.graceAt>=GRACE_MS){tvStartGuess(G);ch=true;}
-  }else if(G.phase==="tdraw"&&!G.paused){
-    if(!G.goAt||now<G.goAt)return ch;
-    if(!G.t0){G.t0=now;G.stepAt=now;G.w=0;ch=true;}
-    const steps=tvSteps(G);
-    if(!G.graceAt&&now-G.stepAt>=tvDur(G,G.w)*1000){if(G.w+1<steps){G.w++;G.stepAt=now;}else{G.graceAt=now;}ch=true;}
+  const now=Date.now();let ch=false;if(G.paused)return false;
+  if(G.phase==="tdraw"){
+    G.chs.forEach(C=>{while(C.c>=0&&C.c<25&&now-C.at>=tvDur(G,C.c)*1000){C.at+=tvDur(G,C.c)*1000;C.c++;ch=true;}});
+    if(!G.graceAt&&tvCur(G,0)>=25&&tvCur(G,1)>=25){G.graceAt=now;ch=true;}
     if(G.graceAt&&now-G.graceAt>=GRACE_MS){tvStartGuess(G);ch=true;}
   }else if(G.phase==="tguess"){
     G.tg.forEach((T,t)=>{if(T.done||!T.t0)return;if(now-T.t0>=G.turnT*1000){const v={};Object.values(T.pings).forEach(p=>v[p]=(v[p]||0)+1);const best=Object.entries(v).sort((a,b)=>b[1]-a[1])[0];tvResolve(G,t,best?+best[0]:-1,true);ch=true;}});
   }
   return ch;
 }
-function tvBoard(g,t){const m=tvDrawers(g,t),out=[];m.forEach((i,pos)=>{const st=g.players[i].pid===PID?NET.my:peerBoard(g,i);(st||[]).forEach(s=>{if(s.k%m.length===pos)out.push(s);});});return out;}
+function tvB(g,i){return i>=0?(peerBoard(g,i)||[]):[];}
+function tvRevB(g){const d=tvAllDrawers(g);if(d.indexOf(APP.tvView)>=0)return APP.tvView;const me=myIdx(g);return d.indexOf(me)>=0?me:(d[0]??-1);}
 function tvOnState(g,L){
-  if(!L||!isTvt(L)||!g.tg||!L.tg)return;const me=myIdx(g),t=tvTeam(g,me),P=g.players;
-  if(g.round!==L.round){sfx("start");return;}
-  if(g.phase==="tdraw"&&(g.w!==L.w||g.wD!==L.wD||JSON.stringify(g.wT)!==JSON.stringify(L.wT))&&tvCellOf(g,me)>=0&&tvCellOf(L,me)!==tvCellOf(g,me))sfx("turn");
-  if(g.dict&&g.round!==(L.round)){}
+  if(!L||!isTvt(L)||!g.tg||!L.tg||!g.chs||!L.chs)return;const me=myIdx(g),t=tvTeam(g,me),P=g.players;
+  if(g.round!==L.round){sfx("start");APP.tvView=-1;return;}
+  if(g.phase==="tdraw"){const x=tvMyCh(g,me),C=g.chs[x]||{},LC=L.chs[x]||{};
+    if(C.c===0&&LC.c<0){sfx("start");buzz(80);}
+    else if(C.c!==LC.c&&C.c>0&&C.c<25&&(tvCellOf(g,me)>=0||tvDictCh(g,me)>=0))sfx("turn");
+    if(g.seqT===1&&L.seqT===0&&t===1)toast("Ваша очередь рисовать!");}
   if(g.graceAt&&!L.graceAt)toast("Слова закончились: 15 секунд дорисовать");
-  if(g.goAt&&!L.goAt){sfx("start");buzz(80);}
-  if(g.t0&&!L.t0){sfx("start");toast("Поехали! Рисуйте");}
+  if(g.paused!==L.paused)toast(g.paused?"Пауза":"Продолжаем");
   if(g.phase==="tguess"&&L.phase!=="tguess"){sfx("start");buzz([80,50,80]);setTimeout(()=>{const w=$("#wrap");if(w){w.classList.remove("shuffling");void w.offsetWidth;w.classList.add("shuffling");setTimeout(()=>w.classList.remove("shuffling"),1400);}},60);const mt=t>=0?tvMemb(g,t).filter(i=>i!==me).map(i=>P[i].name):[];toast(t>=0?`🎧 В канал «${TV_NAME[t]}»${mt.length?" с: "+mt.join(", "):""}`:"Команды угадывают рисунки соперников");}
-  if(t>=0&&g.phase!=="tdraw"){const T=g.tg[t],LT=L.tg[t];if(T.last&&(!LT.last||LT.last.n!==T.last.n)){const ok=T.last.r===1;sfx(ok?"ok":"no");toast((ok?"Верно! ":"Мимо: ")+g.wsT[1-t][T.last.k]+(T.last.auto?" (время вышло)":""));}
+  if(t>=0&&g.phase!=="tdraw"){const T=g.tg[t],LT=L.tg[t];if(T.last&&(!LT.last||LT.last.n!==T.last.n)){const ok=T.last.r===1;sfx(ok?"ok":"no");toast((ok?"Верно! ":"Мимо: ")+g.wsT[1-t][T.last.k]+" у "+P[T.last.b].name+(T.last.auto?" (время вышло)":""));
+      if(g.phase==="tguess"&&!T.done){const q=tvQ(T);if(q&&q.b!==T.last.b){const w=$("#wrap");if(w){w.classList.remove("shuffling");void w.offsetWidth;w.classList.add("shuffling");setTimeout(()=>w.classList.remove("shuffling"),1400);}}}}
     if(g.phase==="tguess"&&!T.done&&tvPicker(g,t)===me&&(LT.pick!==T.pick||L.phase!=="tguess"))buzz([60,40,60]);}
   if(g.phase==="trev"&&L.phase!=="trev")sfx("done");
 }
 function tvTeamsHTML(g){const s=[0,1].map(t=>tvMemb(g,t).reduce((a,i)=>a+g.scores[i],0));
   return `<div class="teams">${[0,1].map(t=>`<div class="team ${s[t]>s[1-t]?"lead":""}" style="border-left:4px solid ${TV_COL[t]}"><span>${TV_NAME[t]}</span><b>${tvMemb(g,t).map(i=>esc(g.players[i].name)).join(", ")}</b><em>${s[t]}</em></div>`).join("")}</div>`;}
+function tvBarHTML(g,x,big){const L=tvLeft(g,x);return `<div class="tbar ${big?"big":""}"><i id="tvbar" style="width:${Math.round(L.left/L.dur*100)}%"></i></div><p class="note"><b id="tvsec2">${Math.ceil(L.left/1000)}</b> с до следующего слова${g.accel?` · ⚡ ${tvDur(g,g.chs[x].c)} с на слово, дальше быстрее`:""}</p>`;}
+function tvCdHTML(g,x,who){const L=tvLeft(g,x);return `<div class="grace"><b>${who}</b><span>Приготовьтесь рисовать</span><div class="gnum" id="tvcd" data-ch="${x}">${Math.max(1,L.cd)}</div></div>`;}
+const tvToolsSec=()=>`<div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`;
 function tvSide(g){
   const auth=isAuth(),me=myIdx(g),t=tvTeam(g,me),P=g.players,o=1-t;
-  const head=`<div class="sec"><div class="row" style="justify-content:space-between"><h3>Битва каракуль</h3><span class="pill">раунд ${g.round+1} из ${g.rounds}</span></div>${t>=0?`<p class="note">Вы в команде <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b></p>`:""}`;
+  const head=`<div class="sec"><div class="row" style="justify-content:space-between"><h3>Битва каракуль</h3><span class="pill">раунд ${g.round+1} из ${g.rounds}</span></div>${t>=0?`<p class="note">Вы в команде <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b></p>`:""}${g.paused?`<p class="crok">⏸ Пауза</p>`:""}`;
+  const own=`<p class="note">У каждого своё поле на 25 клеток: рисуйте все слова сами. Потом рисунки на каждом поле перемешаются, и соперники будут угадывать, где какое слово.</p>`;
+  const goLink=auth&&g.phase==="tdraw"?`<button class="linkbtn" type="button" data-act="tvGo">Сразу к угадыванию</button>`:"";
   let body="";
-  if(g.phase==="tdraw"&&tvOneOn(g)){const c=g.wD,k=tvCellOf(g,me),dn=esc(P[g.dict1].name),sq=g.seqT,ws=g.wsT[sq>=0?sq:0];
-    if(me===g.dict1){const who=[0,1].filter(x=>sq<0||x===sq).map(x=>{const d=tvDrawers(g,x);return c>=0&&c<25&&d.length?`<span style="color:${TV_COL[x]}">${esc(P[d[c%d.length]].name)}</span>`:"";}).filter(Boolean).join(" и ");
-      body=`${head}<div class="flagnote"><p><b>Вы ведущий для всех!</b> ${sq>=0?`Сейчас диктуете команде <b style="color:${TV_COL[sq]}">${TV_NAME[sq]}</b>, потом второй команде. У команд разные слова.`:"Читайте вслух номер клетки и слово: у обеих команд слова одинаковые."} Жмите «Следующее слово». Рисунков вы не видите, а потом угадываете вместе со своей командой.</p></div>
-        ${c<25?`<div class="crword open">${c<0?"Готовы?":`${c+1}. ${esc(ws[c])}`}</div>${who?`<p class="note">Рисуют: <b>${who}</b></p>`:""}
-        <div class="row"><button class="btn big grow" type="button" data-act="tvDNext">${c<0?"Начать диктовку":c>=24?"Последнее слово прочитано":"Следующее слово"}</button>${c>0?`<button class="btn line" type="button" data-act="tvDPrev">Назад</button>`:""}</div>
-        <div class="tvwords" style="margin-top:10px">${ws.map((w,j)=>`<span class="tw ${j===c?"cur":j<c?"ok":""}">${j+1}. ${esc(w)}</span>`).join("")}</div>`:sq===0?`<p class="crok">Первая команда нарисовала!</p><button class="btn big" type="button" data-act="tvDNext">Начать диктовку для «${TV_NAME[1]}»</button>`:`<p class="crok">Все слова прочитаны! Сейчас будет время дорисовать.</p>`}</div>`;}
-    else if(sq>=0&&g.team[me]!==sq){body=`${head}<p>${sq===0?`Сейчас рисуют <b style="color:${TV_COL[0]}">${TV_NAME[0]}</b>. Ваша команда рисует следующей, ждите.`:`Ваша команда уже нарисовала. Сейчас рисуют <b style="color:${TV_COL[1]}">${TV_NAME[1]}</b>.`}</p><p class="note">Ведущий: ${dn}.</p></div>`;}
-    else{const t0=g.team[me],d=tvDrawers(g,t0);
-      body=`${head}${g.graceAt?graceBox():k>=0?`<div class="crword open">Клетка ${k+1}: ваша!</div><p class="note">Слушайте ведущего (${dn}) и рисуйте.</p>`:c<0?`<p>Ведущий для всех: <b>${dn}</b>. Он будет читать слова вслух, у обеих команд они одинаковые.</p>`:c>=25?`<p class="crok">Все слова прочитаны.</p>`:`<p class="note">Сейчас клетка ${c+1}: в вашей команде рисует <b>${esc(P[d[c%d.length]].name)}</b>.</p>`}
-        <p class="note">Рисует только тот, чья клетка подсвечена. Свои прошлые клетки можно дорисовывать. После рисования расходитесь по голосовым каналам своих команд.</p></div>
-        ${me>=0?`<div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`:""}`;}
-  }else if(g.phase==="tdraw"&&tvDictOn(g)){const dt=g.dict.indexOf(me),k=tvCellOf(g,me);
-    if(dt>=0){const c=g.wT[dt],ws=g.wT&&g.wsT[dt],dr=tvDrawers(g,dt);
-      body=`${head}<div class="flagnote"><p><b>Вы ведущий для команды <span style="color:${TV_COL[dt]}">${TV_NAME[dt]}</span>!</b> Читайте вслух номер клетки и слово, потом жмите «Следующее слово». Их рисунков вы не видите. Потом вернётесь в свою команду и поможете угадывать: их слова вы уже знаете.</p></div>
-        ${c<25?`<div class="crword open">${c<0?"Готовы?":`${c+1}. ${esc(ws[c])}`}</div>${c>=0?`<p class="note">Рисует: <b>${esc(g.players[dr[c%dr.length]].name)}</b></p>`:""}
-        <div class="row"><button class="btn big grow" type="button" data-act="tvDNext">${c<0?"Начать диктовку":c>=24?"Последнее слово прочитано":"Следующее слово"}</button>${c>0?`<button class="btn line" type="button" data-act="tvDPrev">Назад</button>`:""}</div>
-        <div class="tvwords" style="margin-top:10px">${ws.map((w,j)=>`<span class="tw ${j===c?"cur":j<c?"ok":""}">${j+1}. ${esc(w)}</span>`).join("")}</div>`:`<p class="crok">Все слова прочитаны! Ждём другую команду.</p>`}</div>`;}
-    else{const t0=g.team[me],c=g.wT[t0],dn=esc(g.players[g.dict[t0]].name);
-      body=`${head}${g.graceAt?graceBox():k>=0?`<div class="crword open">Клетка ${k+1}: ваша!</div><p class="note">Слушайте ведущего (${dn}) и рисуйте.</p>`:c<0?`<p>Ведущий для вашей команды: <b>${dn}</b> из команды соперников. Слушайте его.</p>`:c>=25?`<p class="crok">Все слова прочитаны.</p>`:`<p class="note">Сейчас клетка ${c+1}: рисует <b>${esc(g.players[tvDrawers(g,t0)[c%tvDrawers(g,t0).length]].name)}</b>.</p>`}
-        <p class="note">Номер слышат все, но рисует только тот, чья клетка подсвечена. Свои прошлые клетки можно дорисовывать.</p></div>
-        ${me>=0?`<div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`:""}`;}
-  }else if(g.phase==="tdraw"&&(!g.goAt||Date.now()<g.goAt)){
-    body=`${head}${g.goAt?`<div class="grace"><b>${g.goBy>=0?esc(P[g.goBy].name)+" нажал(а) старт!":"Старт!"}</b><span>Приготовьтесь рисовать</span><div class="gnum" id="tvcd">${Math.max(1,Math.ceil((g.goAt-Date.now())/1000))}</div></div>`
-      :`<p style="font-size:17px">Все готовы? Один игрок нажимает «Старт», и у всех начнётся обратный отсчёт.</p><button class="btn big" type="button" data-act="tvStart">Старт для всех</button>`}
-      <p class="note">Рисуют все: клетки делятся между игроками команды, у каждого на каждом шаге своя клетка и слово.${g.accel?" ⚡ Быстрый темп: слова будут идти всё быстрее.":""}</p></div>`;
-  }else if(g.phase==="tdraw"){const k=tvCellOf(g,me),steps=tvSteps(g),dur=tvDur(g,g.w)*1000,left=g.graceAt?0:Math.max(0,dur-(Date.now()-(g.stepAt||g.t0)));
-    body=`${head}${g.graceAt?graceBox():k>=0?`<p class="note">Клетка <b>${k+1}</b>, рисуйте:</p><div class="crword open">${esc(g.wsT[t][k])}</div><div class="tbar big"><i id="tvbar" style="width:${Math.round(left/dur*100)}%"></i></div><p class="note"><b id="tvsec2">${Math.ceil(left/1000)}</b> с до следующего слова${g.accel?` · ⚡ темп ускоряется: ${tvDur(g,g.w)} с на слово`:""}</p>`:`<p class="note">Ваши клетки нарисованы, можно дорисовывать. Остальные ещё рисуют:</p><div class="tbar"><i id="tvbar" style="width:${Math.round(left/dur*100)}%"></i></div><p class="note"><b id="tvsec2">${Math.ceil(left/1000)}</b> с до следующего слова</p>`}
-      <p class="note">Обе команды рисуют одновременно. Каждый рисует свои клетки, номер и слово появляются здесь. Потом номера перемешаются, и команды будут угадывать рисунки соперников.</p>
-      <p class="note">Шаг ${Math.min(g.w+1,steps)} из ${steps}</p>${auth?`<button class="linkbtn" type="button" data-act="tvGo">Сразу к угадыванию</button>`:""}</div>
-      ${k>=0&&!g.graceAt||g.graceAt?`<div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`:""}`;
-  }else if(g.phase==="tguess"&&t>=0){const T=g.tg[t],pk=tvPicker(g,t),my=pk===me,mine=T.pings[me],left=Math.max(0,g.turnT*1000-(Date.now()-T.t0));
-    if(T.done)body=`${head}<p class="crok">Ваша команда закончила! Ждём соперников.</p><p>Угадано: <b>${Object.keys(T.ok).length} из 25</b>, лучшая серия: <b>${T.best}</b>.</p></div>`;
-    else{const tk=T.order[T.qi],votes={};Object.entries(T.pings).forEach(([pi,p])=>(votes[p]=votes[p]||[]).push(+pi));
-      const lk=(g.tvL||[])[t],mates=tvMemb(g,t).filter(i=>i!==me).map(i=>esc(P[i].name));body=`${head}${T.qi===0?`<div class="flagnote"><p>🎧 <b>Время обсуждать!</b> Переходите в голосовой канал команды <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b>${mates.length?` вместе с: <b>${mates.join(", ")}</b>`:""}.</p></div>`:""}<p class="note">🔀 Рисунки соперников перемешаны, номеров нет. Слово ${T.qi+1} из 25:</p><div class="crword open">${esc(g.wsT[o][tk])}</div>
+  if(g.phase==="tdraw"){const dx=tvDictCh(g,me);
+    if(dx>=0){const C=g.chs[dx],c=C.c,sq=g.seqT,wt=tvDictOn(g)?dx:(sq>=0?sq:0),ws=g.wsT[wt],L=tvLeft(g,dx);
+      const intro=tvOneOn(g)?`<b>Вы ведущий для всех!</b> ${sq>=0?`Сейчас диктуете команде <b style="color:${TV_COL[sq]}">${TV_NAME[sq]}</b>, потом второй команде. У команд разные слова.`:"Читайте вслух номер клетки и слово: у обеих команд слова одинаковые."}`
+        :`<b>Вы ведущий для команды <span style="color:${TV_COL[dx]}">${TV_NAME[dx]}</span>!</b> Читайте им вслух номер клетки и слово. Потом вернётесь в свою команду и поможете угадывать: их слова вы уже знаете.`;
+      body=`${head}<div class="flagnote"><p>${intro} Слова сменяются сами по таймеру, «Следующее слово» листает раньше. Рисунков вы не видите.</p></div>
+        ${g.graceAt?graceBox():c<0?`<div class="crword open">Готовы?</div><button class="btn big" type="button" data-act="tvDNext">Начать диктовку</button><p class="note">У рисующих начнётся обратный отсчёт 3, 2, 1.</p>`
+        :c<25&&L.cd?tvCdHTML(g,dx,"Сейчас начнём!")+`<p class="note">Первое слово: <b>${esc(ws[0])}</b></p>`
+        :c<25?`<div class="crword open">${c+1}. ${esc(ws[c])}</div>${tvBarHTML(g,dx,true)}
+          <div class="row"><button class="btn big grow" type="button" data-act="tvDNext">${c>=24?"Последнее слово прочитано":"Следующее слово"}</button>${c>0?`<button class="btn line" type="button" data-act="tvDPrev">Назад</button>`:""}</div>`
+        :sq===0?`<p class="crok">Первая команда нарисовала!</p><button class="btn big" type="button" data-act="tvDNext">Начать диктовку для «${TV_NAME[1]}»</button>`:`<p class="crok">Все слова прочитаны!</p>`}
+        ${c>=0&&c<25?`<div class="tvwords" style="margin-top:10px">${ws.map((w,j)=>`<span class="tw ${j===c?"cur":j<c?"ok":""}">${j+1}. ${esc(w)}</span>`).join("")}</div>`:""}${goLink}</div>`;}
+    else{const x=tvMyCh(g,me),C=g.chs[x],cur=t>=0?tvCur(g,t):C.c,k=tvCellOf(g,me),dr=tvIsDrawer(g,me),L=tvLeft(g,x),auto=!tvDictOn(g)&&!tvOneOn(g);
+      const dn=tvOneOn(g)?esc(P[g.dict1].name):tvDictOn(g)&&t>=0?esc(P[g.dict[t]].name):"";
+      let main;
+      if(g.graceAt)main=graceBox();
+      else if(g.seqT>=0&&t===1&&cur<0)main=`<p>Сейчас рисуют <b style="color:${TV_COL[0]}">${TV_NAME[0]}</b>. Ваша команда рисует следующей, ждите.</p><p class="note">Ведущий: ${dn}.</p>`;
+      else if(cur<0)main=auto?`<p style="font-size:17px">Все готовы? Один игрок нажимает «Старт», и у всех начнётся обратный отсчёт.</p><button class="btn big" type="button" data-act="tvStart">Старт для всех</button>`
+        :`<p>Ведущий${tvDictOn(g)?" для вашей команды (из соперников)":" для всех"}: <b>${dn}</b>. Когда он начнёт, будет обратный отсчёт.</p>`;
+      else if(cur>=25)main=`<p class="crok">${g.seqT===1&&t===0?`Ваша команда нарисовала! Сейчас рисуют <b style="color:${TV_COL[1]}">${TV_NAME[1]}</b>.`:"Все слова прочитаны."}</p><p class="note">Свои клетки можно дорисовывать.</p>`;
+      else if(L.cd)main=tvCdHTML(g,x,auto&&g.goBy>=0&&P[g.goBy]?esc(P[g.goBy].name)+" нажал(а) старт!":"Старт!");
+      else main=`${k>=0?`<p class="note">Клетка <b>${k+1}</b>${auto?", рисуйте:":""}</p>${auto?`<div class="crword open">${esc(g.wsT[t][k])}</div>`:`<div class="crword open">Клетка ${k+1}</div><p class="note">Слушайте ведущего (${dn}) и рисуйте.</p>`}`:`<p class="note">Слово ${cur+1} из 25</p>`}${tvBarHTML(g,x,true)}<p class="note">Слово ${cur+1} из 25. Прошлые клетки можно дорисовывать.</p>`;
+      body=`${head}${main}${own}${goLink}</div>${dr&&cur>=0?tvToolsSec():""}`;}
+  }else if(g.phase==="tguess"&&t>=0){const T=g.tg[t],pk=tvPicker(g,t),my=pk===me,mine=T.pings[me],left=Math.max(0,g.turnT*1000-(tvNow(g)-T.t0)),N=T.list.length;
+    if(T.done)body=`${head}<p class="crok">Ваша команда закончила! Ждём соперников.</p><p>Угадано: <b>${Object.keys(T.ok).length} из ${N}</b>, лучшая серия: <b>${T.best}</b>.</p></div>`;
+    else{const q=tvQ(T),votes={};Object.entries(T.pings).forEach(([pi,p])=>(votes[p]=votes[p]||[]).push(+pi));const nb=tvDrawers(g,o),bi=nb.indexOf(q.b);
+      const mates=tvMemb(g,t).filter(i=>i!==me).map(i=>esc(P[i].name));body=`${head}${T.qi===0?`<div class="flagnote"><p>🎧 <b>Время обсуждать!</b> Переходите в голосовой канал команды <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b>${mates.length?` вместе с: <b>${mates.join(", ")}</b>`:""}.</p></div>`:""}
+      <p class="note">🔀 Поле игрока <b>${esc(P[q.b].name)}</b>${nb.length>1?` (${bi+1} из ${nb.length})`:""}: рисунки перемешаны. Вопрос ${T.qi+1} из ${N}:</p><div class="crword open">${esc(g.wsT[o][q.k])}</div>
       <div class="tbar"><i id="tvbar" style="width:${Math.round(left/(g.turnT*10))}%"></i></div><p class="note" id="tvsec">${Math.ceil(left/1000)} с на ход</p>
       ${T.qi>0&&mates.length?`<p class="note">🎧 Ваш канал: <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b>, с вами: ${mates.join(", ")}</p>`:""}
       <p>Выбирает: <b>${my?"вы":esc(P[pk].name)}</b>${T.streak>=2?` · серия 🔥${T.streak}`:""}</p>
@@ -1262,11 +1269,11 @@ function tvSide(g){
       <div class="row">${my?`<button class="btn big grow" type="button" data-act="tvPick" ${mine==null?"disabled":""}>${mine==null?"Выберите рисунок на поле":"Это он!"}</button>`:""}
       ${T.hints>0&&!T.cand?`<button class="btn line" type="button" data-act="tvHint" title="Подсветит 3 рисунка, среди которых верный. За угадывание будет +1 вместо +2.">Подсказка (${T.hints})</button>`:""}</div>
       <p class="note">Угадал: +2 тому, кто выбрал, и +1 автору рисунка. Каждые 3 подряд: ещё +1. Время вышло: засчитается рисунок с большинством меток.</p></div>`;}
-    body+=`<div class="sec"><h3>Слова соперников</h3><div class="tvwords">${T.order.map((k,j)=>{const r=T.res[k];return `<span class="tw ${r?(r.r===1?"ok":"no"):j===T.qi?"cur":""}">${esc(g.wsT[o][k])}</span>`;}).join("")}</div></div>`;
-  }else if(g.phase==="tguess"){body=`${head}<p>Команды угадывают рисунки друг друга.</p>${[0,1].map(x=>`<p>${TV_NAME[x]}: ${g.tg[x].qi} из 25</p>`).join("")}</div>`;}
-  else{const view=APP.tvView??0;
-    body=`${head}<h2 style="font-size:22px">Итоги раунда</h2>${[0,1].map(x=>`<p><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b> угадали ${Object.keys(g.tg[x].ok).length} из 25 · лучшая серия ${g.tg[x].best}</p>`).join("")}
-      <p class="note">Смотрите, что было нарисовано на самом деле:</p><div class="seg">${[0,1].map(x=>`<button type="button" class="opt" data-act="tvView" data-arg="${x}" aria-pressed="${view===x}">Поле: ${TV_NAME[x]}</button>`).join("")}</div>
+    body+=`<div class="sec"><h3>Вопросы</h3><div class="tvwords">${T.list.map((q,j)=>{const r=T.res[tvKey(q.b,q.k)];return `<span class="tw ${r?(r.r===1?"ok":"no"):j===T.qi?"cur":""}" title="${esc(P[q.b].name)}">${esc(g.wsT[o][q.k])}</span>`;}).join("")}</div></div>`;
+  }else if(g.phase==="tguess"){body=`${head}<p>Команды угадывают рисунки друг друга.</p>${[0,1].map(x=>`<p>${TV_NAME[x]}: ${g.tg[x].qi} из ${g.tg[x].list.length}</p>`).join("")}</div>`;}
+  else{const view=tvRevB(g);
+    body=`${head}<h2 style="font-size:22px">Итоги раунда</h2>${[0,1].map(x=>`<p><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b> угадали ${Object.keys(g.tg[x].ok).length} из ${g.tg[x].list.length} · лучшая серия ${g.tg[x].best}</p>`).join("")}
+      <p class="note">Смотрите, что нарисовал каждый. ✓ и ✗ показывают, угадали ли соперники.</p><div class="seg" style="flex-wrap:wrap">${tvAllDrawers(g).map(x=>`<button type="button" class="opt" data-act="tvView" data-arg="${x}" aria-pressed="${view===x}" style="border-bottom:3px solid ${TV_COL[g.team[x]]}">${esc(P[x].name)}</button>`).join("")}</div>
       <button class="btn big" type="button" data-act="tvNext" style="margin-top:12px">${g.round+1>=g.rounds?"К итогам":"Следующий раунд"}</button></div>`;}
   return body+`<div class="sec" style="margin-top:auto">${tvTeamsHTML(g)}${scoreHTML(g)}</div>`;
 }
@@ -1275,26 +1282,35 @@ function renderTvt(g){
   if(!$("#side")||!BC||BC.kind!=="tvt"){
     $("#app").innerHTML=playLayout();
     mountBoard({kind:"tvt",
-      strokes:()=>{const G=curG();if(!isTvt(G))return[];const me=myIdx(G),t=tvTeam(G,me);if(G.phase==="tdraw"){if(tvOneOn(G)&&me===G.dict1)return[];if(tvDictOn(G)&&G.dict.indexOf(me)>=0)return[];return me>=0?NET.my:[];}if(G.phase==="tguess")return tvBoard(G,t>=0?1-t:0);return tvBoard(G,APP.tvView??0);},
-      mode:()=>{const G=curG();if(!isTvt(G))return"view";const me=myIdx(G),t=tvTeam(G,me);if(G.phase==="tdraw"){if(tvOneOn(G))return me>=0&&me!==G.dict1&&(G.seqT<0||G.team[me]===G.seqT||G.seqT===1)&&(G.wD>=0||G.seqT===1)?"draw":"view";if(tvDictOn(G))return me>=0&&G.dict.indexOf(me)<0&&G.wT[G.team[me]]>=0?"draw":"view";return me>=0&&G.t0?"draw":"view";}if(G.phase==="tguess"&&t>=0&&!G.tg[t].done)return"pick";return"view";},
+      strokes:()=>{const G=curG();if(!isTvt(G))return[];const me=myIdx(G),t=tvTeam(G,me);
+        if(G.phase==="tdraw")return tvIsDrawer(G,me)?NET.my:[];
+        if(G.phase==="tguess"){const q=tvQ(G.tg[t>=0?t:0]);return q?tvB(G,q.b):[];}
+        return tvB(G,tvRevB(G));},
+      mode:()=>{const G=curG();if(!isTvt(G))return"view";const me=myIdx(G),t=tvTeam(G,me);
+        if(G.phase==="tdraw")return tvIsDrawer(G,me)&&tvCur(G,t)>=0&&!G.paused?"draw":"view";
+        if(G.phase==="tguess"&&t>=0&&!G.tg[t].done)return"pick";return"view";},
       view:()=>{const G=curG();if(!isTvt(G))return{n:25};const me=myIdx(G),t=tvTeam(G,me);
-        if(G.phase==="tdraw"){if(tvOneOn(G)&&me===G.dict1)return{n:25,words:null,show:"none",asked:null,active:G.wD,ring:-1};if(tvDictOn(G)){const dt=G.dict.indexOf(me);if(dt>=0)return{n:25,words:null,show:"none",asked:null,active:G.wT[dt],ring:-1};}return{n:25,words:null,show:"none",asked:null,active:tvCellOf(G,me),ring:-1};}
-        if(G.phase==="tguess"){const x=t>=0?t:0,o=1-x,T=G.tg[x],asked=G.wsT[o].map((_,k)=>T.ok[k]?1:0);
+        if(G.phase==="tdraw"){const dx=tvDictCh(G,me);const a=dx>=0?G.chs[dx].c:tvCellOf(G,me);return{n:25,words:null,show:"none",asked:null,active:a>=0&&a<25?a:-1,ring:-1};}
+        if(G.phase==="tguess"){const x=t>=0?t:0,T=G.tg[x],q=tvQ(T);if(!q)return{n:25};const b=q.b,ws=G.wsT[G.team[b]],asked=ws.map((_,k)=>T.ok[tvKey(b,k)]?1:0);
           const pings=t>=0?Object.entries(T.pings).map(([pi,p])=>({p:+p,c:PAL[+pi%PAL.length],l:(G.players[+pi].name||"?")[0]})):[];
-          return{n:25,perm:G.perm[o],words:G.wsT[o],show:"asked",asked,active:-1,ring:-1,pings,cand:T.cand||[]};}
-        const b=APP.tvView??0,T=G.tg[1-b];return{n:25,words:G.wsT[b],show:"all",asked:G.wsT[b].map((_,k)=>T.res[k]?T.res[k].r:0),active:-1,ring:-1};},
+          return{n:25,perm:G.permP[b],words:ws,show:"asked",asked,active:-1,ring:-1,pings,cand:T.cand||[]};}
+        const b=tvRevB(G);if(b<0)return{n:25};const T=G.tg[1-G.team[b]],ws=G.wsT[G.team[b]];return{n:25,words:ws,show:"all",asked:ws.map((_,k)=>{const r=T.res[tvKey(b,k)];return r?r.r:0;}),active:-1,ring:-1};},
       onStroke:()=>pubBoard(),onPick:p=>{doAct("tping",p);}});
   }
   setSide(tvSide(g)+rxBarHTML()+hostToolsHTML());repaint();
 }
+/* Тикер ведущего в Web Worker: фоновые вкладки не замедляют его так сильно, как обычный setInterval */
+const TVW={w:null};
+function tvHostTick(){if(isAuth()&&HOST.G&&isTvt(HOST.G)&&tvTick(HOST.G)){publishHost();onState();}}
+function tvWorker(){if(TVW.w!==null)return;try{const u=URL.createObjectURL(new Blob(["setInterval(()=>postMessage(0),400)"],{type:"text/javascript"}));TVW.w=new Worker(u);TVW.w.onmessage=tvHostTick;TVW.w.onerror=()=>{try{TVW.w.terminate();}catch(e){}TVW.w=false;};}catch(e){TVW.w=false;}}
 setInterval(()=>{
-  const g=APP.view==="online"?curG():null;if(!isTvt(g))return;
-  if(g.phase==="tdraw"){const cd=$("#tvcd");if(cd&&g.goAt){const s=Math.ceil((g.goAt-Date.now())/1000);if(s>=1)cd.textContent=s;if(cd._s!==s&&s>=1){cd._s=s;sfx("tick");}}
-    const b=$("#tvbar"),ss=$("#tvsec2");if(b&&g.t0){const dur=tvDur(g,g.w)*1000,left=Math.max(0,dur-(Date.now()-(g.stepAt||g.t0)));b.style.width=Math.round(left/dur*100)+"%";if(ss)ss.textContent=Math.ceil(left/1000);}const gr=$("#tvgrace");if(gr&&g.graceAt)gr.textContent=Math.max(0,Math.ceil((GRACE_MS-(Date.now()-g.graceAt))/1000));}
-  if(g.phase==="tguess"){const me=myIdx(g),t=tvTeam(g,me);if(t>=0){const T=g.tg[t],left=Math.max(0,g.turnT*1000-(Date.now()-T.t0)),b=$("#tvbar"),s=$("#tvsec");if(b)b.style.width=Math.round(left/(g.turnT*10))+"%";if(s)s.textContent=Math.ceil(left/1000)+" с на ход";}}
-  if(isAuth()&&HOST.G&&isTvt(HOST.G)&&tvTick(HOST.G)){publishHost();onState();}
+  const g=APP.view==="online"?curG():null;if(!isTvt(g)||!g.chs)return;const me=myIdx(g);
+  if(g.phase==="tdraw"){const cd=$("#tvcd");if(cd){const x=+cd.dataset.ch||0,L=tvLeft(g,x);if(L.cd>=1){cd.textContent=L.cd;if(cd._s!==L.cd){cd._s=L.cd;sfx("tick");}}else renderTvt(g);}
+    const b=$("#tvbar"),ss=$("#tvsec2");if(b&&ss){const L=tvLeft(g,tvMyCh(g,me));b.style.width=Math.round(L.left/L.dur*100)+"%";ss.textContent=Math.ceil(L.left/1000);}
+    const gr=$("#tvgrace");if(gr&&g.graceAt)gr.textContent=Math.max(0,Math.ceil((GRACE_MS-(tvNow(g)-g.graceAt))/1000));}
+  if(g.phase==="tguess"){const t=tvTeam(g,me);if(t>=0){const T=g.tg[t],left=Math.max(0,g.turnT*1000-(tvNow(g)-T.t0)),b=$("#tvbar"),s=$("#tvsec");if(b)b.style.width=Math.round(left/(g.turnT*10))+"%";if(s)s.textContent=Math.ceil(left/1000)+" с на ход";}}
+  if(isAuth()&&HOST.G&&isTvt(HOST.G)){tvWorker();if(!TVW.w)tvHostTick();}
 },250);
-
 function makePhone(players,o){
   const n=players.length,gseed=1000+Math.floor(Math.random()*9000),id=+o.pack||Math.min(4,+o.lvl0||1),cw=parseCustom(o.custom);let ws;
   if(cw.length>=n){const r=rng(gseed),a=cw.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]];}ws=a.slice(0,n);}
@@ -2280,7 +2296,7 @@ function syncPause(g){
 }
 function canPauseNow(){
   if(APP.view==="local")return !!(LG&&["draw","ask"].includes(LG.phase));
-  if(APP.view==="online")return !!(isAuth()&&HOST.G&&["draw","ask","pstep"].includes(HOST.G.phase));
+  if(APP.view==="online")return !!(isAuth()&&HOST.G&&["draw","ask","pstep","tdraw","tguess"].includes(HOST.G.phase));
   return false;
 }
 /* Ведущий: управление игроками */
@@ -2889,7 +2905,7 @@ function achTrack(g,L,local){
   if(g.round!==ACH.askRound){ACH.ask={};ACH.askRound=g.round;}
   if(isTvt(g)){if(g.phase==="trev"&&L.phase!=="trev"&&me>=0){const t=g.team[me],o=1-t,T=g.tg[t];
       const mine=Object.values(T.res).filter(r=>r.by===me).map(r=>r.r===1);let run=0,best=0;mine.forEach(x=>{run=x?run+1:0;best=Math.max(best,run);});if(best>=3)un(me,"tvsniper");
-      const cells=[...Array(25).keys()].filter(k=>tvAuthor(g,t,k)===me),OT=g.tg[o],got=cells.filter(k=>OT.ok[k]).length;
+      const OT=g.tg[o],cells=Object.keys(OT.res).filter(k=>+k.split(":")[0]===me),got=cells.filter(k=>OT.ok[k]).length;
       if(cells.length>=3&&got===0)un(me,"tvghost");if(cells.length>=3&&got===cells.length)un(me,"tvkey");}return;}
   if(isPhone(g)){if(g.phase==="preveal"&&L.phase!=="preveal")g.chains.forEach(ch=>ch.e.forEach((en,st)=>{if(en&&en.ok)un(en.p,"telepath");}));}
   else if(isDuel(g)){if(g.dok&&L.dok&&g.round===L.round){const up=g.players.map((_,i)=>(g.dok[i]||0)>(L.dok[i]||0));
@@ -3086,7 +3102,7 @@ function duelSide(g,auth,me){
   if(g.phase==="end")return endBlock(g,{admin:auth||(sp&&me>=0),hist:auth&&HOST.G.hist.length>0});
   return "";
 }
-const SAVE_KEYS=["kids","swapMix","swapShuf","circles","times","lvl0","pace","pack","blitz","answerT","streakOn","mode","phoneT","accel","jokers","duelHost","duelQ","custom","crocT","blind","chain","teams","vAns","elim","spyT","turnT","tvDict","tvL0","tvL1","tvFast"];
+const SAVE_KEYS=["kids","swapMix","swapShuf","circles","times","lvl0","pace","pack","blitz","answerT","streakOn","mode","phoneT","accel","jokers","duelHost","duelQ","custom","crocT","blind","chain","teams","vAns","elim","spyT","turnT","tvDict","tvL0","tvL1","tvFast","tvQ"];
 function saveSettings(kind,o){const x={};SAVE_KEYS.forEach(k=>{if(o[k]!==undefined)x[k]=o[k];});store.set("last_"+kind,x);}
 function settingsSummary(x){const m=x.mode||0,P=[(MODES[m]||MODES[0])[0]];
   if(m===2)P.push(x.phoneT?x.phoneT+" с на рисунок":"время не ограничено");
@@ -3111,10 +3127,11 @@ function lobbyModeHTML(){
   const vAnsF=`<div class="field"><label>Как отвечать</label>${segHTML("vAns","lobby",[[1,"Вслух"],[0,"Текстом"]],L.vAns??1)}<p class="note">${(L.vAns??1)?"Рисующий называет слово вслух и открывает его, а спросивший (или вы как создатель лобби) жмёт «Верно» или «Неверно».":"Рисующий пишет ответ: совпало, и очко засчитается само, иначе решает спросивший или вы."}</p></div>`;
   if(m===4){const lp=lobbyPlayers(),to=teamOrder(lp,L.tseed||0),tm=[0,1].map(t=>to.filter((_,i)=>i%2===t).map(p=>esc(p.name)));
     return h+`<div class="field"><label>Команды</label><p class="note"><b style="color:${TV_COL[0]}">${TV_NAME[0]}:</b> ${tm[0].join(", ")||"—"}<br><b style="color:${TV_COL[1]}">${TV_NAME[1]}:</b> ${tm[1].join(", ")||"—"}</p>${lp.length>=2?`<button class="linkbtn" type="button" data-act="teamShuffle">Перемешать команды</button>`:""}
-      <p class="note">Вы тоже играете. Обе команды одновременно рисуют по 25 своих слов, клетки делятся между участниками. Потом номера перемешиваются, и каждая команда угадывает, где у соперников какое слово. Обсуждайте голосом, например в Discord, и ставьте метки. Выбирает по очереди каждый. Угадал: +2 тебе и +1 автору рисунка. 3 подряд: ещё +1. Одна подсказка за раунд.</p></div>
+      <p class="note">Вы тоже играете. У каждого игрока своё поле на 25 клеток: все в команде рисуют одни и те же 25 слов, каждый сам. Потом рисунки на каждом поле перемешиваются, и команда угадывает, где у соперников какое слово, поле за полем. Обсуждайте голосом, например в Discord, и ставьте метки. Выбирает по очереди каждый. Угадал: +2 тебе и +1 автору рисунка. 3 подряд: ещё +1. Одна подсказка на каждое поле соперников.</p></div>
     <div class="field"><label>Кто диктует слова</label>${segHTML("tvDict","lobby",[[0,"Игра (текстом)"],[1,"Ведущий из соперников"],[2,"Один ведущий, слова общие"],[3,"Один ведущий, по очереди"]],L.tvDict||0)}<p class="note">${L.tvDict===3?"Один игрок по очереди становится ведущим. Сначала он диктует первой команде её слова, потом второй команде её слова. Слова у команд разные. Сам ведущий не рисует и рисунков не видит.":L.tvDict===2?"Каждый раунд один игрок по очереди становится ведущим и читает слова вслух обеим командам. У всех слова одинаковые, сам ведущий не рисует. После рисования команды расходятся по своим голосовым каналам.":L.tvDict?"Каждый раунд игрок из одной команды становится ведущим для соперников и читает им слова вслух, потом по очереди другие. Их рисунков он не видит, а потом вместе со своей командой угадывает, где что, зная их слова. В этом раунде он сам не рисует. Нужно минимум по 2 человека в команде, иначе слова покажет игра.":"Номер и слово появляются у рисующего на экране."}</p></div>
-    <div class="field"><label>Темп</label>${segHTML("tvFast","lobby",[[0,"Обычный"],[1,"⚡ Быстрый"]],(L.tvFast??1)?1:0)}<p class="note">${(L.tvFast??1)?"Слова идут всё быстрее: каждые 2 слова на секунду меньше, до 3 секунд. Работает, когда слова показывает игра.":"Одинаковое время на каждое слово."}</p></div>
+    <div class="field"><label>Темп</label>${segHTML("tvFast","lobby",[[0,"Обычный"],[1,"⚡ Быстрый"]],(L.tvFast??1)?1:0)}<p class="note">${(L.tvFast??1)?"Слова идут всё быстрее: каждые 2 слова на секунду меньше, до 3 секунд. Таймер идёт и при диктовке, ведущий может листать раньше.":"Одинаковое время на каждое слово."}</p></div>
     <div class="split" style="gap:20px"><div class="field"><label>Время на слово</label>${segHTML("pace","lobby",[[5,"5 с"],[7,"7 с"],[9,"9 с"],[12,"12 с"]],L.pace&&L.pace>=5&&L.pace<=12?L.pace:9)}</div><div class="field"><label>Время на ход</label>${segHTML("turnT","lobby",[[20,"20 с"],[30,"30 с"],[45,"45 с"],[60,"60 с"]],L.turnT||45)}</div></div>
+    <div class="field"><label>Угадывать рисунков с каждого поля</label>${segHTML("tvQ","lobby",[[0,"Авто"],[5,"5"],[10,"10"],[25,"Все 25"]],L.tvQ||0)}<p class="note">Авто: чем больше игроков, тем меньше вопросов с каждого поля (около 20 вопросов на команду).</p></div>
     <div class="field"><label>Раундов</label>${segHTML("times","lobby",[[1,"1"],[2,"2"],[3,"3"]],Math.min(3,L.times||1))}</div>`;}
   if(m===8||m===9)return h+`${m===8?`<div class="field"><label>Время на рисунок</label>${segHTML("spyT","lobby",[[45,"45 с"],[60,"60 с"],[90,"90 с"]],L.spyT||60)}</div>`:""}
     <div class="field"><label>Раундов</label>${segHTML("times","lobby",[[2,"2"],[3,"3"],[4,"4"],[5,"5"]],L.times)}<p class="note">${m===8?"Вы тоже играете. Каждому показывается его слово; у шпиона оно похожее, но другое. Никто не знает, кто шпион, даже он сам. Пойман: +1 каждому, кто за него голосовал. Не пойман: шпиону +3. Пойманный может угадать слово остальных и забрать +2.":"Вы тоже играете. Все по очереди проводят по одной линии на общем рисунке, 2 круга. Один игрок слова не знает. Потом голосование. Пойман: +1 угадавшим, и он может угадать слово за +2. Не пойман: ему +3."} Нужно минимум 3 игрока, веселее от 4.</p></div>`;
