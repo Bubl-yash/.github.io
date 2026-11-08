@@ -209,6 +209,21 @@ details[open] summary{margin-bottom:10px}
 .xcwords{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}.xcwords span{border:1px solid var(--line);border-radius:10px;padding:4px 10px;font-weight:600}.xcwords b{color:var(--accent);margin-right:6px}
 .xcpick .xcslots{display:flex;gap:6px;margin-bottom:6px}.xcpick .xcslots span{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;font-weight:800;font-size:18px}
 .xcplan{margin:6px 0 10px 18px;line-height:1.6}
+.xsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;font-weight:700;color:var(--muted)}.xsteps i{font-style:normal;opacity:.5}
+.xsteps span{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;border:1px solid var(--line)}.xsteps span b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--line);font-size:12px}
+.xsteps span.on{color:var(--text);border-color:var(--accent-line);background:var(--accent-soft)}.xsteps span.on b{background:var(--accent);color:var(--accent-ink,#fff)}.xsteps span.done{opacity:.6}
+.xpanels{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.xpanel{border:1px solid var(--line);border-top:4px solid var(--tc);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.xph{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.xph b{color:var(--tc);font-size:16px}.xph span{color:var(--muted);font-size:13px}
+.xnew canvas{width:100%;max-width:340px;margin:0 auto;aspect-ratio:5/4;display:block;border-radius:12px}
+.xq{margin:0;font-weight:700;font-size:15px;min-height:1.4em}
+.xcards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.xcard{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;padding:8px;border-radius:12px;border:2px solid var(--line);background:var(--board,transparent);color:var(--text);font:inherit;cursor:pointer;min-width:0}
+.xcard:disabled{cursor:default;opacity:1}.xcard:not(:disabled):hover{border-color:var(--tc)}
+.xcard.sel{border-color:var(--tc);box-shadow:0 0 0 3px color-mix(in srgb,var(--tc) 30%,transparent)}.xcard.right{border-color:#2fa45e;box-shadow:0 0 0 3px rgba(47,164,94,.3)}.xcard.wrong{border-color:#e5483f}
+.xcl{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.xcl b{color:var(--tc);margin-right:4px}
+.xcv{display:flex;flex-wrap:wrap;gap:2px}.xth{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:4px}.xth canvas{width:100%;aspect-ratio:5/4;display:block;border-radius:6px}.xth em{grid-column:1/-1;font-size:12px;color:var(--muted);font-style:normal}
+.xrules{margin-top:6px}.xrules summary{cursor:pointer;font-weight:700}.xrules ol{margin:8px 0 6px 18px;padding:0;display:grid;gap:6px;font-size:14px}
 .tcbox{max-height:170px;overflow:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px;font-size:14px;padding-right:4px}.tcbox p{margin:0;line-height:1.35;word-break:break-word}.tcbox p.me{opacity:.85}
 .xcbest{margin-top:16px}.xcbest h3{margin-bottom:8px}.xcbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .xcbc{display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:14px;border:1px solid transparent}.xcbc.on{border-color:var(--accent-line);background:var(--accent-soft)}.xcbc canvas{width:100%;aspect-ratio:5/4;display:block;border-radius:10px}.xcsum{margin:10px 0}.xcsum span{display:block;font-size:13px;color:var(--muted)}.tw{font-size:13px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);background:var(--surface2)}
@@ -1139,81 +1154,72 @@ setInterval(()=>{
   if(isAuth()&&HOST.G&&isSpy(HOST.G)&&HOST.G.phase==="sdraw"&&spyLeft(HOST.G)<=0){applySpy(HOST.G,"stime",null,-1);publishHost();onState();}
 },300);
 
-/* ================= Перехват: команда на команду (шифровка рисунками + захват поля) ================= */
+/* ================= Перехват: «Куда положить рисунок?» =================
+   У каждой команды 4 секретных слова (карточки). Каждый раунд шифровальщик рисует подсказку к одному слову.
+   Свои выбирают, к какому слову рисунок. Соперники выбирают, к какой из их карточек «?» он относится (перехват). */
 const isTvt=G=>!!G&&G.mode===4;
-const TV_NAME=["Оранжевые","Синие"],TV_COL=["#f28a2e","#3f86e8"],XC_GOLD="#e9b20e";
+const TV_NAME=["Оранжевые","Синие"],TV_COL=["#f28a2e","#3f86e8"];
 const tvMemb=(G,t)=>G.players.map((p,i)=>i).filter(i=>G.team[i]===t);
 const tvTeam=(G,i)=>i>=0&&G.team?G.team[i]:-1;
-const XC_LINES=(()=>{const L=[];for(let r=0;r<5;r++)L.push([0,1,2,3,4].map(c=>r*5+c));for(let c=0;c<5;c++)L.push([0,1,2,3,4].map(r=>r*5+c));L.push([0,6,12,18,24],[4,8,12,16,20]);return L;})();
-const xcLineN=(G,t)=>XC_LINES.filter(l=>l.every(k=>G.cells[k].o===t)).length;
-function xcCellPts(G,t){let s=0;G.cells.forEach(c=>{if(c.o===t)s+=c.v*(c.gold?2:1);});return s;}
-const xcPts=(G,t)=>xcCellPts(G,t)+5*xcLineN(G,t)+((G.finPts||[0,0])[t]||0);
-const xcFree=G=>G.cells.map((c,k)=>c.o<0?k:-1).filter(k=>k>=0);
-const xcCode=c=>(c||[]).map(x=>x+1).join("");
-const xcDur=G=>({xdraw:G.drawT,xguess:G.guessT,xclaim:G.claimT,xfin:G.finT})[G.phase]||0;
+const XP={own:1,icp:2,fin:2};
+const xcPts=(G,t)=>((G.tp||[0,0])[t]||0)+((G.finPts||[0,0])[t]||0);
+const xcDur=G=>({xdraw:G.drawT,xguess:G.guessT,xres:G.revT,xfin:G.finT})[G.phase]||0;
 function xcNowG(G){return G.paused&&G.pauseAt?G.pauseAt:clkNow();}
 function xcLeft(G){const d=xcDur(G)*1000;return d?Math.max(0,d-(xcNowG(G)-G.t0)):0;}
 function xcShuf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function makeTvt(players,o){
   const G={mode:4,gid:Math.random().toString(36).slice(2,9),players:players.map(p=>({pid:p.pid||"",name:p.name})),team:players.map((_,i)=>i%2),
     rounds:Math.max(2,+o.xR||8),round:-1,scores:players.map(()=>0),rs:players.map(()=>0),selfPlay:true,n:1,ws:[""],asked:[0],pend:null,turn:0,hist:[],
-    drawT:+o.xT||60,guessT:+o.xG||40,claimT:20,finT:75,paused:false,pauseAt:0,lvl:1,phase:"xdraw",t0:0,
-    pst:players.map(()=>({icp:0,enc:0})),tok:{icp:[0,0],miss:[0,0]},log:[[],[]],finPts:[0,0],fin:{},finHit:null};
-  const t={n:25,usedIds:{},gseed:1000+Math.floor(Math.random()*9000),custom:[]};pickRoundWords(t,2);
-  let ws=[];for(const w of xcShuf(t.ws.slice()))if(!ws.some(x=>normW(x)===normW(w)))ws.push(w);
+    drawT:+o.xT||45,guessT:+o.xG||30,revT:7,finT:75,paused:false,pauseAt:0,lvl:1,phase:"xdraw",t0:0,
+    pst:players.map(()=>({icp:0,enc:0})),tok:{icp:[0,0],miss:[0,0]},tp:[0,0],log:[[],[]],bag:[[],[]],finPts:[0,0],fin:{},finHit:null,best:{},bestWin:[]};
+  const t={n:25,usedIds:{},gseed:1000+Math.floor(Math.random()*9000),custom:[]};pickRoundWords(t,1);
+  let ws=[];for(const w of xcShuf(t.ws.slice()))if(w.length<=14&&!ws.some(x=>normW(x)===normW(w)))ws.push(w);
   if(ws.length<8){if(!ALLW)ALLW=[...new Set([1,2,3,4,99].flatMap(k=>BANK[k]||[]))];for(const w of xcShuf(ALLW.slice())){if(ws.length>=8)break;if(!ws.some(x=>normW(x)===normW(w)))ws.push(w);}}
   G.kw=[ws.slice(0,4),ws.slice(4,8)];
-  const vals=xcShuf([...Array(9).fill(1),...Array(10).fill(2),...Array(6).fill(3)]);
-  G.cells=vals.map(v=>({v,gold:false,o:-1,p:-1,r:-1,d:-1,x:0}));
-  xcShuf([...Array(25).keys()].filter(k=>k!==12)).slice(0,2).forEach(k=>{G.cells[k].gold=true;});
   xcRound(G);return G;
 }
+/* Слова выдаются «из мешка»: пока не нарисовали все 4, слово не повторяется, и два раза подряд одно слово не выпадает */
+function xcDrawWord(G,t){let b=G.bag[t];if(!b.length){b=xcShuf([0,1,2,3]);const last=G.cur?G.cur[t]:-1;if(b[0]===last)b.push(b.shift());}const w=b.shift();G.bag[t]=b;return w;}
 function xcRound(G){
   G.round++;G.enc=[0,1].map(t=>{const m=tvMemb(G,t);return m.length?m[G.round%m.length]:-1;});
-  G.code=[0,1].map(()=>xcShuf([0,1,2,3]).slice(0,3));
-  G.done=[0,0];G.votes={};G.vn=0;G.res=null;G.claims=[0,0];G.cl=[0,0];G.phase="xdraw";G.t0=Date.now();G.rs=G.players.map(()=>0);
+  G.cur=[0,1].map(t=>xcDrawWord(G,t));
+  G.done=[0,0];G.votes={};G.vn=0;G.lastVote=0;G.res=null;G.phase="xdraw";G.t0=Date.now();G.rs=G.players.map(()=>0);
 }
-function xcValid(s){return typeof s==="string"&&/^[1-4]{3}$/.test(s)&&new Set(s).size===3;}
-function xcVoted(G,i){const v=G.votes[i],t=G.team[i];if(!v)return G.round===0&&i===G.enc[t];return (i===G.enc[t]||xcValid(v.o))&&(G.round===0||xcValid(v.x));}
-function xcMaj(G,t,key){const c={},first={};tvMemb(G,t).forEach(i=>{const v=G.votes[i];if(!v||!xcValid(v[key]))return;c[v[key]]=(c[v[key]]||0)+1;if(first[v[key]]==null||v.n<first[v[key]])first[v[key]]=v.n;});
-  const ks=Object.keys(c);if(!ks.length)return"";ks.sort((a,b)=>c[b]-c[a]||first[a]-first[b]);return ks[0];}
-const xcSolo=(G,t)=>tvMemb(G,t).length===1;
-const xcOwnN=(G,t)=>xcSolo(G,t)?1:2;
-function xcToGuess(G){G.phase="xguess";G.t0=Date.now();}
+const xcOk=v=>Number.isInteger(v)&&v>=0&&v<4;
+function xcVoted(G,i){const t=G.team[i],v=G.votes[i]||{};return (i===G.enc[t]||xcOk(v.o))&&(G.round===0||xcOk(v.x));}
+function xcMaj(G,t,key){const c={},first={};tvMemb(G,t).forEach(i=>{const v=G.votes[i];if(!v||!xcOk(v[key]))return;const k=v[key];c[k]=(c[k]||0)+1;if(first[k]==null||v[key+"n"]<first[k])first[k]=v[key+"n"];});
+  const ks=Object.keys(c).map(Number);if(!ks.length)return-1;ks.sort((a,b)=>c[b]-c[a]||first[a]-first[b]);return ks[0];}
+function xcToGuess(G){G.phase="xguess";G.t0=Date.now();G.lastVote=0;}
 function xcResolve(G){
-  const ans=[0,1].map(t=>({o:xcMaj(G,t,"o"),x:G.round>0?xcMaj(G,t,"x"):""}));
-  const own=[0,1].map(t=>xcSolo(G,t)||ans[t].o===xcCode(G.code[t])),icp=[0,1].map(t=>G.round>0&&ans[t].x===xcCode(G.code[1-t]));
-  G.res={ans,own,icp};G.claims=[0,1].map(t=>(own[t]?xcOwnN(G,t):0)+(icp[t]?1:0));G.cl=[0,0];
-  [0,1].forEach(t=>{if(!own[t])G.tok.miss[t]++;if(icp[t])G.tok.icp[t]++;});
+  const ans=[0,1].map(t=>({o:xcMaj(G,t,"o"),x:G.round>0?xcMaj(G,t,"x"):-1}));
+  const own=[0,1].map(t=>ans[t].o===G.cur[t]),icp=[0,1].map(t=>G.round>0&&ans[t].x===G.cur[1-t]);
+  G.res={ans,own,icp};
+  [0,1].forEach(t=>{if(own[t])G.tp[t]+=XP.own;else G.tok.miss[t]++;if(icp[t]){G.tp[t]+=XP.icp;G.tok.icp[t]++;}});
   Object.entries(G.votes).forEach(([si,v])=>{const i=+si,t=G.team[i];if(t==null)return;
-    if(i!==G.enc[t]&&v.o===xcCode(G.code[t])){G.scores[i]++;G.rs[i]++;}
-    if(G.round>0&&v.x&&v.x===xcCode(G.code[1-t])){G.scores[i]+=2;G.rs[i]+=2;G.pst[i].icp++;}});
-  [0,1].forEach(t=>{const e=G.enc[t];if(e>=0&&own[t]&&!icp[1-t]){const b=xcSolo(G,t)?1:2;G.scores[e]+=b;G.rs[e]+=b;if(!xcSolo(G,t))G.pst[e].enc++;}});
-  [0,1].forEach(t=>G.log[t].push({r:G.round,c:G.code[t].slice(),p:G.enc[t],own:own[t]?1:0,icp:icp[1-t]?1:0}));
-  G.phase="xclaim";G.t0=Date.now();
+    if(i!==G.enc[t]&&v.o===G.cur[t]){G.scores[i]++;G.rs[i]++;}
+    if(G.round>0&&v.x===G.cur[1-t]){G.scores[i]+=2;G.rs[i]+=2;G.pst[i].icp++;}});
+  [0,1].forEach(t=>{const e=G.enc[t];if(e<0||!own[t])return;const b=icp[1-t]?1:3;G.scores[e]+=b;G.rs[e]+=b;if(!icp[1-t])G.pst[e].enc++;});
+  [0,1].forEach(t=>G.log[t].push({r:G.round,p:G.enc[t],w:G.cur[t],own:own[t]?1:0,icp:icp[1-t]?1:0}));
+  G.phase="xres";G.t0=Date.now();
 }
-function xcPlace(G,t,k){const c=G.cells[k];if(!c||c.o>=0||G.cl[t]>=G.claims[t])return false;const n=G.cl[t],ownN=G.res&&G.res.own[t]?xcOwnN(G,t):0,mine=n<ownN;
-  c.o=t;c.r=G.round;c.p=mine?G.enc[t]:G.enc[1-t];c.d=mine?n:0;c.x=mine?0:1;G.cl[t]++;return true;}
-function xcAutoCell(G,t){let best=-1,bs=-1;xcFree(G).forEach(k=>{const c=G.cells[k];let s=c.v*(c.gold?2:1)*10;XC_LINES.forEach(l=>{if(l.includes(k)&&!l.some(j=>G.cells[j].o===1-t))s+=l.filter(j=>G.cells[j].o===t).length*4;});if(s>bs){bs=s;best=k;}});return best;}
-function xcEndClaim(G){if(G.round+1>=G.rounds||!xcFree(G).length){G.phase="xfin";G.t0=Date.now();G.fin={};}else xcRound(G);}
-function xcFinMatch(a,b){a=normW(a);b=normW(b);if(!a||!b)return false;return a===b||(b.length>=5&&a.length>=4&&lev(a,b)<=1)||(b.length>=8&&a.length>=6&&lev(a,b)<=2);}
+function xcAfterRes(G){if(G.round+1>=G.rounds){G.phase="xfin";G.t0=Date.now();G.fin={};}else xcRound(G);}
 const xcCands=G=>[0,1].flatMap(t=>G.log[t].map(e=>e.r+":"+e.p));
+function xcFinMatch(a,b){a=normW(a);b=normW(b);if(!a||!b)return false;return a===b||(b.length>=5&&a.length>=4&&lev(a,b)<=1)||(b.length>=8&&a.length>=6&&lev(a,b)<=2);}
 function xcFinResolve(G){
   G.finHit=[0,1].map(t=>G.kw[1-t].map((w,j)=>{let hit=false;tvMemb(G,t).forEach(i=>{const f=G.fin[i];if(f&&xcFinMatch(f[j],w)){hit=true;G.scores[i]++;G.rs[i]++;}});return hit?1:0;}));
-  G.finPts=[0,1].map(t=>G.finHit[t].reduce((a,b)=>a+b,0)*3);G.phase="xend";G.t0=Date.now();G.best={};
+  G.finPts=[0,1].map(t=>G.finHit[t].reduce((a,b)=>a+b,0)*XP.fin);G.phase="xend";G.t0=Date.now();G.best={};
 }
 function applyTvt(G,type,arg,i){
   const t=tvTeam(G,i),now=Date.now();
   if(G.paused&&type!=="pause")return;
   switch(type){
-    case "pause":{if(!["xdraw","xguess","xclaim","xfin"].includes(G.phase))break;if(!G.paused){G.paused=true;G.pauseAt=now;}else{G.t0+=now-(G.pauseAt||now);G.paused=false;G.pauseAt=0;}break;}
+    case "pause":{if(!["xdraw","xguess","xres","xfin"].includes(G.phase))break;if(!G.paused){G.paused=true;G.pauseAt=now;}else{G.t0+=now-(G.pauseAt||now);G.paused=false;G.pauseAt=0;}break;}
     case "xdone":if(G.phase==="xdraw"&&t>=0&&i===G.enc[t]){G.done[t]=1;if(G.done[0]&&G.done[1])xcToGuess(G);}break;
-    case "xvote":{if(G.phase!=="xguess"||i<0||!arg||typeof arg!=="object")break;G.votes[i]={o:i===G.enc[t]?"":String(arg.o||""),x:G.round>0?String(arg.x||""):"",n:++G.vn};
-      if(G.players.every((_,j)=>xcVoted(G,j)))xcResolve(G);break;}
-    case "xclaim":{if(G.phase!=="xclaim"||t<0||i!==G.enc[t])break;xcPlace(G,t,+arg);break;}
+    case "xvote":{if(G.phase!=="xguess"||t<0||!arg||typeof arg!=="object")break;const k=arg.k==="x"?"x":"o",v=+arg.v;if(!xcOk(v))break;
+      if(k==="o"&&i===G.enc[t])break;if(k==="x"&&G.round===0)break;const cur=G.votes[i]||{};cur[k]=v;cur[k+"n"]=++G.vn;G.votes[i]=cur;G.lastVote=now;break;}
     case "xfw":{if(G.phase!=="xfin"||i<0||!Array.isArray(arg))break;G.fin[i]=[0,1,2,3].map(j=>clean(String(arg[j]||"")).slice(0,40));if(G.players.every((_,j)=>G.fin[j]))xcFinResolve(G);break;}
-    case "xskip":{if(G.phase==="xdraw")xcToGuess(G);else if(G.phase==="xguess")xcResolve(G);else if(G.phase==="xclaim"){[0,1].forEach(x=>{while(G.cl[x]<G.claims[x]){const k=xcAutoCell(G,x);if(k<0)break;xcPlace(G,x,k);}});xcEndClaim(G);}else if(G.phase==="xfin")xcFinResolve(G);break;}
     case "xbest":{if(G.phase!=="xend"||i<0)break;const k=String(arg||""),p=+k.split(":")[1];if(!xcCands(G).includes(k)||p===i)break;if(G.best[i]===k)delete G.best[i];else G.best[i]=k;break;}
+    case "xskip":{if(G.phase==="xdraw")xcToGuess(G);else if(G.phase==="xguess")xcResolve(G);else if(G.phase==="xres")xcAfterRes(G);else if(G.phase==="xfin")xcFinResolve(G);break;}
     case "xnext":if(G.phase==="xend"){const c={};Object.values(G.best||{}).forEach(k=>c[k]=(c[k]||0)+1);const mx=Math.max(0,...Object.values(c));G.bestWin=mx>0?Object.keys(c).filter(k=>c[k]===mx):[];
       G.bestWin.forEach(k=>{const p=+k.split(":")[1];if(p>=0){G.scores[p]+=2;G.rs[p]+=2;}});G.phase="final";}break;
   }
@@ -1221,14 +1227,12 @@ function applyTvt(G,type,arg,i){
 function tvTick(G){
   if(G.paused||!isTvt(G))return false;const now=Date.now(),el=now-G.t0,d=xcDur(G)*1000;
   if(G.phase==="xdraw"&&el>=d){xcToGuess(G);return true;}
-  if(G.phase==="xguess"&&el>=d){xcResolve(G);return true;}
-  if(G.phase==="xclaim"){const free=xcFree(G).length,left=[0,1].reduce((a,x)=>a+Math.max(0,G.claims[x]-G.cl[x]),0);
-    if((left===0||free===0)&&el>=(G.claims[0]+G.claims[1]?3500:7000)){xcEndClaim(G);return true;}
-    if(el>=d){[0,1].forEach(x=>{while(G.cl[x]<G.claims[x]){const k=xcAutoCell(G,x);if(k<0)break;xcPlace(G,x,k);}});xcEndClaim(G);return true;}}
+  if(G.phase==="xguess"){if(el>=d||(G.lastVote&&now-G.lastVote>=2500&&G.players.every((_,j)=>xcVoted(G,j)))){xcResolve(G);return true;}}
+  if(G.phase==="xres"&&el>=d){xcAfterRes(G);return true;}
   if(G.phase==="xfin"&&el>=d){xcFinResolve(G);return true;}
   return false;
 }
-/* Рисунки прошлых раундов: храним у себя (в презенсе лежит только текущий раунд) */
+/* Рисунки прошлых раундов храним у себя: в презенсе лежит только текущий */
 const XCC={gid:null,d:{}};
 function xcLoad(g){if(XCC.gid===g.gid)return;XCC.gid=g.gid;XCC.d={};try{XCC.d=JSON.parse(localStorage.getItem("k25.xc."+g.gid)||"{}")||{};
   for(let j=localStorage.length-1;j>=0;j--){const k=localStorage.key(j);if(k&&k.startsWith("k25.xc.")&&k!=="k25.xc."+g.gid)localStorage.removeItem(k);}}catch(e){}}
@@ -1237,16 +1241,15 @@ function xcCapture(g){if(!g.enc||g.phase==="xdraw")return;xcLoad(g);let ch=false
   g.enc.forEach(p=>{if(p<0)return;const st=tvB(g,p);if(!st.length)return;const s=encStrokes(st,6000),key=g.round+":"+p;if(XCC.d[key]!==s){XCC.d[key]=s;ch=true;}});
   if(ch)try{localStorage.setItem("k25.xc."+g.gid,JSON.stringify(XCC.d));}catch(e){}}
 function xcGet(g,r,p){if(p<0)return[];if(r===g.round){const st=tvB(g,p);if(st.length)return st;}xcLoad(g);const s=XCC.d[r+":"+p];return s?decStrokes(s):[];}
-function xcTile(st,q){return st.filter(s=>s.k===q).map(s=>Object.assign({},s,{k:0}));}
 function xcOnState(g,L){
-  if(!L||!isTvt(L)||!g.cells)return;const me=myIdx(g),t=tvTeam(g,me),P=g.players;
-  if(g.round!==L.round&&g.phase==="xdraw"){sfx("start");APP.xcP=null;if(t>=0&&g.enc[t]===me){buzz([80,50,80]);toast("Вы шифровальщик! Нарисуйте код");}else toast(`Раунд ${g.round+1}: шифрует ${t>=0?P[g.enc[t]].name:P[g.enc[0]].name}`);}
+  if(!L||!isTvt(L)||!g.kw)return;const me=myIdx(g),t=tvTeam(g,me),P=g.players;
+  if(g.round!==L.round&&g.phase==="xdraw"){sfx("start");if(t>=0&&g.enc[t]===me){buzz([80,50,80]);toast("Ваша очередь рисовать подсказку!");}else toast(`Раунд ${g.round+1}: рисует ${P[g.enc[t>=0?t:0]].name}`);}
   if(g.phase===L.phase)return;
-  if(g.phase==="xguess"){sfx("turn");buzz(60);toast("Разгадываем коды!");}
-  if(g.phase==="xclaim"&&g.res){if(t>=0){const ok=g.res.own[t],ic=g.res.icp[t],lost=g.res.icp[1-t];sfx(ok?"ok":"no");toast((ok?"Свой код разгадан!":"Свой код не поняли")+(ic?" · 🕵 Перехват!":"")+(lost?" · Соперники перехватили ваш код":""));if(g.enc[t]===me&&g.claims[t])buzz([60,40,60]);}else sfx("done");}
+  if(g.phase==="xguess"){sfx("turn");buzz(60);toast("Угадываем! Нажмите на карточку");}
+  if(g.phase==="xres"&&g.res){if(t>=0){const ok=g.res.own[t],ic=g.res.icp[t],lost=g.res.icp[1-t];sfx(ok||ic?"ok":"no");toast((ok?"✓ Свои поняли":"✗ Свои не поняли")+(ic?" · 🕵 Перехват!":"")+(lost?" · соперники перехватили ваш рисунок":""));}else sfx("done");}
   if(g.phase==="xfin"){APP.xcFin=[];sfx("start");toast("Финал: угадайте секретные слова соперников");}
   if(g.phase==="xend")sfx("done");
-  if(g.phase==="final"&&g.bestWin&&g.bestWin.length)setTimeout(()=>toast("🏆 Лучший шифр: "+g.bestWin.map(k=>P[+k.split(":")[1]].name).join(", ")+" (+2)"),900);
+  if(g.phase==="final"&&g.bestWin&&g.bestWin.length)setTimeout(()=>toast("🏆 Лучший рисунок: "+g.bestWin.map(k=>P[+k.split(":")[1]].name).join(", ")+" (+2)"),900);
 }
 function tvOnState(g,L){try{xcOnState(g,L);}catch(e){}}
 /* ---------- Командный чат: сообщения лежат в презенсе отправителя, видит только своя команда ---------- */
@@ -1260,112 +1263,98 @@ function tcList(g){const me=myIdx(g),t=tvTeam(g,me);if(t<0)return[];if(TC.gid!==
 function tcHTML(g){const me=myIdx(g),t=tvTeam(g,me);if(t<0||g.phase==="final")return"";const L=tcList(g),P=g.players;
   return `<div class="sec"><h3 style="color:${TV_COL[t]}">Чат команды</h3><div class="tcbox" id="tcbox">${L.length?L.map(m=>`<p class="${m.i===me?"me":""}"><b style="color:${PAL[m.i%PAL.length]}">${esc(P[m.i].name)}</b> ${esc(m.x)}</p>`).join(""):`<p class="note">Соперники этот чат не видят.</p>`}</div>
     <div class="chips">${TC_QUICK.map((q,j)=>`<button class="chip" type="button" data-act="tcQuick" data-arg="${j}">${q}</button>`).join("")}</div>
-    <div class="row"><input class="inp grow" id="tcIn" data-tc="1" maxlength="140" autocomplete="off" placeholder="Сообщение своей команде" value="${esc(APP.tcDraft||"")}"><button class="btn sm" type="button" data-act="tcSend">→</button></div></div>`;}
+    <div class="row"><input class="inp grow" id="tcIn" maxlength="140" autocomplete="off" placeholder="Сообщение своей команде" value="${esc(APP.tcDraft||"")}"><button class="btn sm" type="button" data-act="tcSend">→</button></div></div>`;}
 document.addEventListener("input",e=>{if(e.target&&e.target.id==="tcIn")APP.tcDraft=e.target.value;});
 document.addEventListener("keydown",e=>{if(e.target&&e.target.id==="tcIn"&&e.key==="Enter"){e.preventDefault();tcSend(e.target.value);}});
 /* ---------- Отрисовка ---------- */
 function xcTeamsHTML(g){const s=[0,1].map(t=>xcPts(g,t));
-  return `<div class="teams">${[0,1].map(t=>`<div class="team ${s[t]>s[1-t]?"lead":""}" style="border-left:4px solid ${TV_COL[t]}"><span>${TV_NAME[t]} · 🕵 ${g.tok.icp[t]} · ✗ ${g.tok.miss[t]}</span><b>${tvMemb(g,t).map(i=>esc(g.players[i].name)).join(", ")}</b><em>${s[t]}</em></div>`).join("")}</div>`;}
+  return `<div class="teams">${[0,1].map(t=>`<div class="team ${s[t]>s[1-t]?"lead":""}" style="border-left:4px solid ${TV_COL[t]}"><span>${TV_NAME[t]} · 🕵 ${g.tok.icp[t]}</span><b>${tvMemb(g,t).map(i=>esc(g.players[i].name)).join(", ")}</b><em>${s[t]}</em></div>`).join("")}</div>`;}
 const tvTeamsHTML=xcTeamsHTML;
-function xcWordsHTML(g,t,hl){return `<div class="xcwords">${g.kw[t].map((w,j)=>`<span class="${hl&&hl.includes(j)?"on":""}"><b>${j+1}</b>${esc(w)}</span>`).join("")}</div>`;}
-function xcPickHTML(key,cur,dis){return `<div class="xcpick"><div class="xcslots">${[0,1,2].map(q=>`<span>${cur[q]!=null?cur[q]+1:"·"}</span>`).join("")}</div><div class="row">${[0,1,2,3].map(d=>`<button class="btn line sm" type="button" data-act="xcDig" data-arg="${key}${d}" ${dis||cur.includes(d)||cur.length>=3?"disabled":""}>${d+1}</button>`).join("")}<button class="linkbtn" type="button" data-act="xcClr" data-arg="${key}">сброс</button></div></div>`;}
-function xcBar(g){const d=xcDur(g)*1000,l=xcLeft(g);return `<div class="tbar"><i id="xcbar" style="width:${d?Math.round(l/d*100):0}%"></i></div><p class="note"><b id="xcsec">${Math.ceil(l/1000)}</b> с</p>`;}
+const XC_STEPS=[["xdraw","Рисуем"],["xguess","Угадываем"],["xres","Итог"]];
+function xcStepsHTML(g){const k=XC_STEPS.findIndex(s=>s[0]===g.phase);if(k<0)return"";return `<div class="xsteps">${XC_STEPS.map((s,j)=>`<span class="${j===k?"on":j<k?"done":""}"><b>${j+1}</b>${s[1]}</span>`).join("<i>→</i>")}</div>`;}
+function xcBar(g){const d=xcDur(g)*1000,l=xcLeft(g);return d?`<div class="tbar"><i id="xcbar" style="width:${Math.round(l/d*100)}%"></i></div><p class="note"><b id="xcsec">${Math.ceil(l/1000)}</b> с</p>`:"";}
+/* Прошлые рисунки, лежащие под карточкой j команды x */
+function xcCardHist(g,x,j){const shown=g.phase==="xdraw"||g.phase==="xguess"?g.round:g.round+1;return g.log[x].filter(e=>e.w===j&&e.r<shown);}
+/* Панель команды: новый рисунок, вопрос и 4 карточки */
+function xcPanelHTML(g,x,me){
+  const t=tvTeam(g,me),P=g.players,mine=t===x,ph=g.phase,known=mine||ph==="xend",enc=g.enc[x],R=g.res;
+  const showNew=ph==="xdraw"||ph==="xguess"||ph==="xres";
+  const key=mine?"o":"x",myVote=me>=0&&g.votes[me]?g.votes[me][key]:undefined;
+  const canPick=ph==="xguess"&&t>=0&&(mine?me!==enc:g.round>0);
+  let q="";
+  if(ph==="xdraw")q=mine?(me===enc?"Вы рисуете подсказку":`${esc(P[enc].name)} рисует подсказку к одному из ваших слов…`):`${esc(P[enc].name)} рисует подсказку для своей команды…`;
+  else if(ph==="xguess")q=t<0?"Команды угадывают":mine?(me===enc?"Это ваш рисунок. Ждите, пока команда угадает":"Какое это из ваших слов? Нажмите карточку"):g.round===0?"Перехват начнётся со 2-го раунда: пока запоминайте рисунки":"К какой карточке соперников он относится? Ищите похожие рисунки и нажмите";
+  else if(ph==="xres")q=mine?(R.own[x]?"✓ Свои поняли":"✗ Свои не поняли")+(R.icp[1-x]?" · 🕵 соперники перехватили":"")
+    :(g.round===0?"Перехвата в 1-м раунде нет":R.icp[1-x]?"🕵 Перехват удался!":"Перехват не удался")+(R.own[x]?" · свои поняли":" · свои не поняли");
+  else if(ph==="xfin")q=mine?"Ваши слова и рисунки к ним":"Угадайте эти 4 слова по рисункам";
+  else if(ph==="xend")q="Все слова открыты";
+  const votes={};tvMemb(g,mine?x:(t>=0?t:1-x)).forEach(i=>{const v=g.votes[i];if(v&&xcOk(v[key]))(votes[v[key]]=votes[v[key]]||[]).push(i);});
+  const cards=[0,1,2,3].map(j=>{const hist=xcCardHist(g,x,j),ans=R?(mine?R.ans[x].o:R.ans[1-x].x):-1;
+    const right=ph==="xres"&&j===g.cur[x]&&(mine||g.round>0),wrong=ph==="xres"&&j===ans&&j!==g.cur[x];
+    const label=known?`<b>${j+1}</b> ${esc(g.kw[x][j])}`:`<b>${j+1}</b> ?`;
+    const vs=(ph==="xguess"&&t>=0&&(mine||t!==x))?(votes[j]||[]).map(i=>avatar(P[i].name,i,"sm")).join(""):"";
+    return `<button type="button" class="xcard ${myVote===j&&ph==="xguess"?"sel":""} ${right?"right":""} ${wrong?"wrong":""}" ${canPick?`data-act="xcPick" data-arg="${key}:${j}"`:"disabled"}>
+      <span class="xcl">${label}${right?" ✓":""}${wrong?" ✗":""}</span>${vs?`<span class="xcv">${vs}</span>`:""}
+      <span class="xth">${hist.map(e=>`<canvas data-xh="${e.r}:${e.p}" title="раунд ${e.r+1}${e.icp?" · перехвачен":""}"></canvas>`).join("")||`<em>${ph==="xend"||ph==="xfin"?"не рисовали":"пока пусто"}</em>`}</span></button>`;}).join("");
+  return `<section class="xpanel" style="--tc:${TV_COL[x]}"><div class="xph"><b>${mine?"Ваша команда":"Соперники"}</b><span>${TV_NAME[x]}${showNew?" · рисует "+esc(P[enc].name):""}${ph==="xdraw"&&g.done[x]?" ✓ готово":""}</span></div>
+    ${showNew?`<div class="xnew"><canvas data-xn="${x}"></canvas></div>`:""}<p class="xq">${q}</p><div class="xcards">${cards}</div></section>`;
+}
+function xcWrapHTML(g,me){const t=tvTeam(g,me),first=t>=0?t:0;
+  let best="";if(g.phase==="xend")best=`<div class="xcbest"><h3>Лучший рисунок игры</h3><p class="note">Голосуйте за самую хитрую подсказку (за свою нельзя). Автору +2.</p><div class="xcbgrid">${xcCands(g).map(k=>{const[r,p]=k.split(":").map(Number),x=g.team[p],e=g.log[x].find(z=>z.r===r&&z.p===p),n=Object.values(g.best||{}).filter(v=>v===k).length,mine=(g.best||{})[me]===k;
+      return `<div class="xcbc ${mine?"on":""}"><div class="xph" style="--tc:${TV_COL[x]}"><b>${esc(g.players[p].name)}</b><span>«${esc(g.kw[x][e.w])}»${n?` · ${n} ${plural(n,"голос","голоса","голосов")}`:""}</span></div><canvas data-xs="${k}"></canvas>${me>=0&&me!==p?`<button class="btn ${mine?"":"line"} sm" type="button" data-act="xcBest" data-arg="${k}">${mine?"Ваш голос ✓":"Лучший!"}</button>`:""}</div>`;}).join("")}</div></div>`;
+  return `${xcStepsHTML(g)}<div class="xpanels">${xcPanelHTML(g,first,me)}${xcPanelHTML(g,1-first,me)}</div>${best}`;}
 function xcSide(g){
-  const auth=isAuth(),me=myIdx(g),t=tvTeam(g,me),P=g.players,o=t>=0?1-t:1,isEnc=t>=0&&g.enc[t]===me;
+  const auth=isAuth(),me=myIdx(g),t=tvTeam(g,me),P=g.players,isEnc=t>=0&&g.enc[t]===me,ph=g.phase;
   const head=`<div class="sec"><div class="row" style="justify-content:space-between"><h3>Перехват</h3><span class="pill">раунд ${g.round+1} из ${g.rounds}</span></div>${t>=0?`<p class="note">Вы в команде <b style="color:${TV_COL[t]}">${TV_NAME[t]}</b></p>`:""}${g.paused?`<p class="crok">⏸ Пауза</p>`:""}`;
-  const skip=auth&&["xdraw","xguess","xclaim","xfin"].includes(g.phase)?`<button class="linkbtn" type="button" data-act="xcSkip">Дальше, не дожидаясь</button>`:"";
+  const skip=auth&&["xdraw","xguess","xres","xfin"].includes(ph)?`<button class="linkbtn" type="button" data-act="xcSkip">Дальше, не дожидаясь</button>`:"";
+  const rules=`<details class="xrules" ${g.round===0&&ph==="xdraw"?"open":""}><summary>Как играть</summary><ol><li><b>Рисуем.</b> Шифровальщик получает одно из 4 секретных слов команды и рисует подсказку: не само слово, а то, что с ним связано.</li><li><b>Угадываем.</b> Свои нажимают, к какому слову рисунок (+${XP.own} команде). Соперники нажимают, к какой из ваших карточек «?» он относится. Угадали: перехват, +${XP.icp} им.</li><li><b>Итог.</b> Рисунок ложится под свою карточку. Под карточками соперников копятся их рисунки, и перехватывать становится легче.</li><li><b>Финал.</b> Угадайте 4 слова соперников: +${XP.fin} за каждое.</li></ol><p class="note">Хитрость: рисуйте так, чтобы свои поняли, а соперники не связали с прошлыми рисунками.</p></details>`;
   let body="";
-  if(g.phase==="xdraw"){
-    if(isEnc){const c=g.code[t];body=`${head}<div class="flagnote"><p><b>Вы шифровальщик!</b> Нарисуйте 3 подсказки к своим словам по коду. Рисуйте ассоциацию, а не само слово, без букв и цифр. Соперники тоже увидят рисунки и попробуют перехватить код.</p></div>
-      ${xcSolo(g,t)?`<p class="note">Вы один в команде, поэтому шифруете каждый раунд. Свой код засчитается сам (1 флажок), главное, чтобы соперники его не перехватили.</p>`:""}<p class="note">Ваш код:</p><div class="crword open">${c.map(x=>x+1).join(" · ")}</div>
-      <ol class="xcplan">${c.map((x,q)=>`<li>${q+1}-й рисунок: слово <b>${x+1} · ${esc(g.kw[t][x])}</b></li>`).join("")}</ol>${xcBar(g)}
-      ${g.done[t]?`<p class="crok">Готово! Ждём второго шифровальщика.</p>`:`<button class="btn big" type="button" data-act="xcDone">Готово</button>`}${skip}</div>
-      <div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`;}
-    else body=`${head}<p>Шифруют: ${[0,1].map(x=>`<b style="color:${TV_COL[x]}">${esc(P[g.enc[x]].name)}</b>`).join(" и ")}.</p>${xcBar(g)}
-      ${t>=0?`<p class="note">Ваши секретные слова (соперники их не видят):</p>${xcWordsHTML(g,t)}<p class="note">Скоро ваш шифровальщик покажет код из 3 цифр тремя рисунками. Вспоминайте, что он рисовал раньше.</p>`:""}${skip}</div>`;
-  }else if(g.phase==="xguess"){
-    if(t<0)body=`${head}<p>Команды разгадывают коды.</p>${xcBar(g)}${skip}</div>`;
-    else{const R=APP.xcP&&APP.xcP.r===g.round?APP.xcP:(APP.xcP={r:g.round,o:[],x:[]}),v=g.votes[me],can=G0=>(isEnc||R.o.length===3)&&(g.round===0||R.x.length===3);
-      const voted=tvMemb(g,t).map(i=>`<span class="chip ${xcVoted(g,i)?"on":""}">${esc(P[i].name)}${xcVoted(g,i)?" ✓":""}</span>`).join("");
-      body=`${head}${xcBar(g)}<p class="note">Ваши слова:</p>${xcWordsHTML(g,t)}
-      ${isEnc&&xcSolo(g,t)?`<p class="note">Вы играете один: свой код засчитывается сам, но за него 1 флажок, а не 2. Ваша задача: перехватить код соперников.</p>`:isEnc?`<p class="note">Свой код вы знаете (${xcCode(g.code[t])}), помогите команде перехватить код соперников.</p>`:`<div class="field"><label>Код вашей команды (рисунки слева)</label>${xcPickHTML("o",R.o)}</div>`}
-      <div class="field"><label>Перехват: код соперников</label>${g.round===0?`<p class="note">С 2-го раунда. Пока просто смотрите их рисунки.</p>`:xcPickHTML("x",R.x)}</div>
-      <button class="btn big" type="button" data-act="xcSend" ${can()?"":"disabled"}>${v?"Изменить ответ":"Отправить"}</button>${v?`<p class="crok">Ответ отправлен${v.o?": "+v.o:""}${v.x?" · перехват "+v.x:""}</p>`:""}
-      <div class="chips">${voted}</div><p class="note">Ответ команды: вариант большинства. Поровну: тот, что прислали раньше.</p>${skip}</div>`;}
-  }else if(g.phase==="xclaim"){const R=g.res;
-    const line=x=>`<p><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b>: код <b>${xcCode(g.code[x])}</b>. Свои: ${R.ans[x].o||"—"} ${R.own[x]?"✓":"✗"}${g.round>0?` · перехват соперников: ${R.ans[1-x].x||"—"} ${R.icp[1-x]?"🕵 да":"нет"}`:""}</p>`;
-    const myLeft=t>=0?g.claims[t]-g.cl[t]:0;
-    body=`${head}<h3>Итоги раунда</h3>${line(0)}${line(1)}
-      <p class="note">Флажки: ${[0,1].map(x=>`<b style="color:${TV_COL[x]}">${TV_NAME[x]} ${g.cl[x]}/${g.claims[x]}</b>`).join(" · ")}</p>
-      ${isEnc&&myLeft>0?`<div class="flagnote"><p><b>Ставьте флажки!</b> Нажмите ${myLeft} ${plural(myLeft,"свободную клетку","свободные клетки","свободных клеток")} на поле. Линия из 5 клеток: +5.</p></div>`:t>=0&&myLeft>0?`<p class="note">Флажки ставит ${esc(P[g.enc[t]].name)}. Подсказывайте ему!</p>`:""}
-      ${xcBar(g)}<p class="note">Свои поняли код: 2 клетки (игрок-одиночка: 1). Перехватили чужой: 1 клетка. Время выйдет: флажки встанут сами.</p>${skip}</div>`;
-  }else if(g.phase==="xfin"){const done=me>=0&&g.fin[me],vals=APP.xcFin||[];
-    body=`${head}<h3>Финал</h3><p>Какие 4 секретных слова были у соперников? Подсказка: их рисунки за всю игру под полем.</p>${xcBar(g)}
-      ${t>=0?(done?`<p class="crok">Ответ отправлен. Ждём остальных.</p>`:`${[0,1,2,3].map(j=>`<div class="field"><label>Слово ${j+1}</label><input class="inp" id="xcf${j}" data-xcin="${j}" maxlength="40" autocomplete="off" value="${esc(vals[j]||"")}"></div>`).join("")}<button class="btn big" type="button" data-act="xcFin">Отправить</button>`):""}
-      <p class="note">Каждое угаданное слово: +3 команде (хватит одного верного ответа в команде) и +1 тому, кто угадал.</p>${skip}</div>`;
-  }else if(g.phase==="xend"){const s=[0,1].map(x=>xcPts(g,x)),w=s[0]===s[1]?-1:s[0]>s[1]?0:1;
+  if(ph==="xdraw"){
+    if(isEnc){const w=g.kw[t][g.cur[t]],prev=xcCardHist(g,t,g.cur[t]);
+      body=`${head}<p class="note">Нарисуйте подсказку к слову:</p><div class="crword open">${esc(w)}</div>
+        <div class="flagnote"><p>Рисуйте то, что <b>связано</b> со словом, а не само слово. Без букв и цифр. Например, для «море»: рыба, якорь или волна. Свои должны понять, к какой из 4 карточек рисунок, а соперники не должны догадаться.</p></div>
+        ${prev.length?`<p class="note">К этому слову уже рисовали ${prev.length} ${plural(prev.length,"раз","раза","раз")}: соперники их видели, так что придумайте что-то новое.</p>`:""}
+        <p class="note">Ваши слова: ${g.kw[t].map((x,j)=>j===g.cur[t]?`<b>${esc(x)}</b>`:esc(x)).join(", ")}</p>${xcBar(g)}
+        ${g.done[t]?`<p class="crok">Готово! Ждём второго художника.</p>`:`<button class="btn big" type="button" data-act="xcDone">Готово</button>`}${skip}</div>
+        <div class="sec"><h3 class="h3art"><span class="art">${ART.pencils}</span>Кисть</h3>${toolsHTML()}</div>`;}
+    else body=`${head}<p style="font-size:17px">Сейчас рисуют подсказки. Смотрите, как идёт рисунок, и вспоминайте прошлые.</p>${xcBar(g)}${rules}${skip}</div>`;
+  }else if(ph==="xguess"){const need=t<0?"":isEnc&&g.round===0?"Это ваш рисунок. Ждите, пока команда угадает.":!xcVoted(g,me)?(isEnc?"Ваш шаг: перехват. Нажмите карточку соперников.":g.round===0?"Нажмите карточку со словом под рисунком вашей команды.":"Нажмите карточку в обеих панелях: своё слово и перехват."):"Ответ принят. Можно передумать, пока идёт время.";
+    const done=g.players.filter((_,j)=>xcVoted(g,j)).length;
+    body=`${head}<p style="font-size:17px">${need}</p>${xcBar(g)}<p class="note">Ответили: ${done} из ${P.length}. Ответ команды: карточка, которую выбрало больше игроков. Аватарки на карточках показывают, кто что выбрал.</p>${rules}${skip}</div>`;
+  }else if(ph==="xres"){const R=g.res;
+    const line=x=>`<p><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b>: рисунок ${t===x?"к слову «"+esc(g.kw[x][g.cur[x]])+"»":"к карточке "+(g.cur[x]+1)}. Свои ${R.own[x]?"поняли ✓ +"+XP.own:"не поняли ✗"}${g.round>0?`, перехват ${R.icp[1-x]?"🕵 удался: +"+XP.icp+" соперникам":"не удался"}`:""}.</p>`;
+    body=`${head}<h3>Итог раунда</h3>${line(t>=0?t:0)}${line(t>=0?1-t:1)}${xcBar(g)}${skip}</div>`;
+  }else if(ph==="xfin"){const done=me>=0&&g.fin[me],vals=APP.xcFin||[];
+    body=`${head}<h3>Финал</h3><p>Какие 4 секретных слова у соперников? Подсказка: их рисунки под карточками.</p>${xcBar(g)}
+      ${t>=0?(done?`<p class="crok">Ответ отправлен. Ждём остальных.</p>`:`${[0,1,2,3].map(j=>`<div class="field"><label>Карточка ${j+1}</label><input class="inp" id="xcf${j}" data-xcin="${j}" maxlength="40" autocomplete="off" value="${esc(vals[j]||"")}"></div>`).join("")}<button class="btn big" type="button" data-act="xcFin">Отправить</button>`):""}
+      <p class="note">Угаданное слово: +${XP.fin} команде (хватит одного верного ответа в команде) и +1 тому, кто угадал.</p>${skip}</div>`;
+  }else if(ph==="xend"){const s=[0,1].map(x=>xcPts(g,x)),w=s[0]===s[1]?-1:s[0]>s[1]?0:1;
     body=`${head}<h2 style="font-size:22px">${w<0?"Ничья!":`Победа: <span style="color:${TV_COL[w]}">${TV_NAME[w]}</span>`}</h2>
-      ${[0,1].map(x=>`<div class="xcsum"><b style="color:${TV_COL[x]}">${TV_NAME[x]}: ${s[x]}</b><span>клетки ${xcCellPts(g,x)} · линии ${xcLineN(g,x)}×5 · финал ${g.finPts[x]}</span>
-        <p class="note">Секретные слова: ${g.kw[x].map((w2,j)=>`${j+1}. <b>${esc(w2)}</b>${g.finHit&&g.finHit[1-x][j]?" 🕵":""}`).join(", ")}</p></div>`).join("")}
-      <p class="note">🕵: это слово соперники угадали в финале.</p><div class="flagnote"><p><b>Лучший шифр игры.</b> Голосуйте под полем за самый хитрый набор рисунков (за свой нельзя). Победителю +2. Проголосовали: ${Object.keys(g.best||{}).length} из ${P.length}.</p></div>${auth?`<button class="btn big" type="button" data-act="xcNext">К итогам</button>`:`<p class="note">Ведущий откроет итоги.</p>`}</div>`;
+      ${[0,1].map(x=>`<div class="xcsum"><b style="color:${TV_COL[x]}">${TV_NAME[x]}: ${s[x]}</b><span>за раунды ${g.tp[x]} · финал ${g.finPts[x]} (угадано ${g.finHit?g.finHit[x].reduce((a,b)=>a+b,0):0} из 4)</span></div>`).join("")}
+      <div class="flagnote"><p><b>Лучший рисунок игры.</b> Голосуйте под карточками. Проголосовали: ${Object.keys(g.best||{}).length} из ${P.length}.</p></div>
+      ${auth?`<button class="btn big" type="button" data-act="xcNext">К итогам</button>`:`<p class="note">Ведущий откроет итоги.</p>`}</div>`;
   }
   return body+tcHTML(g)+`<div class="sec" style="margin-top:auto">${xcTeamsHTML(g)}${scoreHTML(g)}</div>`;
 }
-/* Поле 5×5 */
-function xcPaintField(cv,g,hover){
-  if(!fitCanvas(cv))return;const T=tokens(),ctx=cv.getContext("2d"),W=cv.width,H=cv.height,Gm=geo(W,H,5),u=Math.min(Gm.cw,Gm.ch)-Gm.gap,rad=u*.1,pens=penColors(T);
-  ctx.setLineDash([]);ctx.globalAlpha=1;ctx.clearRect(0,0,W,H);ctx.fillStyle=T.tray;ctx.fillRect(0,0,W,H);
-  g.cells.forEach((c,k)=>{const t=tileOf(Gm,k);ctx.save();ctx.fillStyle=k===hover&&c.o<0?T.hover:T.board;rr(ctx,t.x,t.y,t.w,t.h,rad);ctx.fill();
-    if(c.o>=0){ctx.globalAlpha=.22;ctx.fillStyle=TV_COL[c.o];rr(ctx,t.x,t.y,t.w,t.h,rad);ctx.fill();ctx.globalAlpha=1;
-      ctx.save();rr(ctx,t.x,t.y,t.w,t.h,rad);ctx.clip();ctx.lineCap="round";ctx.lineJoin="round";
-      for(const st of xcTile(xcGet(g,c.r,c.p),c.d)){if(st.c===4||!st.p||!st.p.length)continue;ctx.strokeStyle=ctx.fillStyle=pens[st.c]||T.text;const lw=Math.max(1.2,u*.018*(SIZES[st.s]??1)),X=q=>t.x+q[0]*t.w,Y=q=>t.y+q[1]*t.h;
-        if(st.p.length===1){ctx.beginPath();ctx.arc(X(st.p[0]),Y(st.p[0]),lw/2,0,6.2832);ctx.fill();continue;}ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(X(st.p[0]),Y(st.p[0]));for(let j=1;j<st.p.length;j++)ctx.lineTo(X(st.p[j]),Y(st.p[j]));ctx.stroke();}
-      ctx.restore();ctx.strokeStyle=TV_COL[c.o];ctx.lineWidth=Math.max(3,u*.05);const o=ctx.lineWidth/2;rr(ctx,t.x+o,t.y+o,t.w-2*o,t.h-2*o,rad);ctx.stroke();}
-    if(c.gold){ctx.strokeStyle=XC_GOLD;ctx.lineWidth=Math.max(2,u*.03);ctx.setLineDash([u*.07,u*.045]);const o=u*.06;rr(ctx,t.x+o,t.y+o,t.w-2*o,t.h-2*o,rad*.7);ctx.stroke();ctx.setLineDash([]);}
-    ctx.fillStyle=c.gold?XC_GOLD:T.text;ctx.globalAlpha=c.o>=0?.75:.55;ctx.font=`800 ${Math.round(u*.15)}px Manrope,system-ui,sans-serif`;ctx.textAlign="left";ctx.textBaseline="top";ctx.fillText("★".repeat(c.v)+(c.gold?"×2":""),t.x+u*.08,t.y+u*.07);
-    if(c.x){ctx.textAlign="right";ctx.fillText("🕵",t.x+t.w-u*.07,t.y+u*.07);}
-    ctx.restore();});
-  [0,1].forEach(x=>XC_LINES.forEach(l=>{if(!l.every(k=>g.cells[k].o===x))return;const a=tileOf(Gm,l[0]),b=tileOf(Gm,l[4]);ctx.save();ctx.strokeStyle=TV_COL[x];ctx.globalAlpha=.8;ctx.lineWidth=u*.07;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(a.x+a.w/2,a.y+a.h/2);ctx.lineTo(b.x+b.w/2,b.y+b.h/2);ctx.stroke();ctx.restore();}));
-}
-function xcFieldCell(cv,e){const r=cv.getBoundingClientRect(),Gm=geo(r.width,r.height,5),c=Math.floor((e.clientX-r.left-Gm.pad)/Gm.cw),w=Math.floor((e.clientY-r.top-Gm.pad)/Gm.ch);return c>=0&&c<5&&w>=0&&w<5?w*5+c:-1;}
-/* Доски шифровальщиков 2×2: три рисунка и карточка кода */
-function xcBoardView(g,x,me){const t=tvTeam(g,me),rev=g.phase!=="xdraw"&&g.phase!=="xguess",c=g.code[x],mine=t===x||g.phase==="xend";
-  const ws=[0,1,2].map(q=>rev?`${c[q]+1} · ${mine?g.kw[x][c[q]]:"?"}`:`${q+1}-й`);ws.push(rev?"код "+c.map(d=>d+1).join("·"):"код ? ? ?");return ws;}
-function xcHistHTML(g,x,me){const t=tvTeam(g,me),known=t===x||g.phase==="xend",cur=g.phase==="xdraw"||g.phase==="xguess"?g.round:g.round+1;
-  const cols=[0,1,2,3].map(j=>{const items=[];g.log[x].forEach(e=>{if(e.r>=cur)return;e.c.forEach((kj,q)=>{if(kj===j)items.push({r:e.r,p:e.p,q});});});
-    return `<div class="xccol"><div class="xch">${j+1} · ${known?esc(g.kw[x][j]):"?"}</div>${items.map(it=>`<canvas class="xcmini" data-xh="${x}:${it.r}:${it.p}:${it.q}" title="раунд ${it.r+1}"></canvas>`).join("")||`<span class="note">пока нет</span>`}</div>`;});
-  const codes=g.log[x].filter(e=>e.r<cur).map(e=>`<span class="chip">р${e.r+1}: ${xcCode(e.c)}${e.icp?" 🕵":""}${e.own?"":" ✗"}</span>`).join("");
-  return `<div class="xchist"><h3 style="color:${TV_COL[x]}">${t===x?"Ваша история":"История соперников"} · ${TV_NAME[x]}</h3><div class="xccols">${cols.join("")}</div>${codes?`<div class="chips">${codes}</div>`:""}</div>`;}
-function xcWrapHTML(g,me){const t=tvTeam(g,me),first=t>=0?t:0,order=[first,1-first],ph=g.phase;
-  const boards=ph==="xdraw"||ph==="xguess"||ph==="xclaim"?`<div class="xcduo">${order.map(x=>`<div class="xcb"><div class="xcbh" style="border-color:${TV_COL[x]}"><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b><span>${x===t?"код вашей команды":"код соперников"} · рисует ${esc(g.players[g.enc[x]].name)}${ph==="xdraw"&&g.done[x]?" ✓":""}</span></div><canvas data-xb="${x}"></canvas></div>`).join("")}</div>`:"";
-  const field=`<div class="xcfield ${ph==="xclaim"?"big":""}"><canvas id="xcf"></canvas></div>`;
-  const best=ph==="xend"?`<div class="xcbest"><h3>Лучший шифр игры</h3><div class="xcbgrid">${xcCands(g).map(k=>{const[r,p]=k.split(":").map(Number),x=g.team[p],e=g.log[x].find(z=>z.r===r&&z.p===p),n=Object.values(g.best||{}).filter(v=>v===k).length,mine=(g.best||{})[me]===k;
-      return `<div class="xcbc ${mine?"on":""}"><div class="xcbh" style="border-color:${TV_COL[x]}"><b>${esc(g.players[p].name)}</b><span>раунд ${r+1} · код ${xcCode(e.c)}${n?` · ${n} ${plural(n,"голос","голоса","голосов")}`:""}</span></div><canvas data-xs="${k}"></canvas>${me>=0&&me!==p?`<button class="btn ${mine?"":"line"} sm" type="button" data-act="xcBest" data-arg="${k}">${mine?"Ваш голос ✓":"Лучший!"}</button>`:""}</div>`;}).join("")}</div></div>`:"";
-  return `${ph==="xclaim"?field+boards:boards+field}${best}<div class="xchists">${order.map(x=>xcHistHTML(g,x,me)).join("")}</div>`;}
-function xcPaintAll(){const g=curG();if(!isTvt(g)||!g.cells)return;const me=myIdx(g);xcCapture(g);
-  document.querySelectorAll("canvas[data-xb]").forEach(cv=>{const x=+cv.dataset.xb;if(!fitCanvas(cv))return;paintBoard(cv,{n:4,strokes:xcGet(g,g.round,g.enc[x]),words:xcBoardView(g,x,me),show:"all",lab:.55,nonum:true,asked:null,active:-1,ring:-1,hover:-1});});
-  document.querySelectorAll("canvas[data-xh]").forEach(cv=>{const[x,r,p,q]=cv.dataset.xh.split(":").map(Number);if(!fitCanvas(cv))return;paintBoard(cv,{n:1,strokes:xcTile(xcGet(g,r,p),q),words:null,show:"none",asked:null,active:-1,ring:-1,hover:-1});});
-  document.querySelectorAll("canvas[data-xs]").forEach(cv=>{const[r,p]=cv.dataset.xs.split(":").map(Number),x=g.team[p],e=g.log[x].find(z=>z.r===r&&z.p===p);if(!e||!fitCanvas(cv))return;
-    paintBoard(cv,{n:4,strokes:xcGet(g,r,p),words:[...e.c.map(d=>`${d+1} · ${g.kw[x][d]}`),"код "+xcCode(e.c).split("").join("·")],show:"all",lab:.55,nonum:true,asked:null,active:-1,ring:-1,hover:-1});});
-  const f=$("#xcf");if(f)xcPaintField(f,g,APP.xcHover??-1);}
+function xcPaintAll(){const g=curG();if(!isTvt(g)||!g.kw)return;xcCapture(g);
+  const one=(cv,st)=>{if(fitCanvas(cv))paintBoard(cv,{n:1,strokes:st,words:null,show:"none",asked:null,active:-1,ring:-1,hover:-1});};
+  document.querySelectorAll("canvas[data-xn]").forEach(cv=>one(cv,xcGet(g,g.round,g.enc[+cv.dataset.xn])));
+  document.querySelectorAll("canvas[data-xh],canvas[data-xs]").forEach(cv=>{const[r,p]=(cv.dataset.xh||cv.dataset.xs).split(":").map(Number);one(cv,xcGet(g,r,p));});}
 function renderTvt(g){
   const me=myIdx(g),t=tvTeam(g,me),drawing=g.phase==="xdraw"&&t>=0&&g.enc[t]===me;
+  const tb=()=>{const b=$("#tcbox");if(b)b.scrollTop=b.scrollHeight;};
   if(drawing){
     if(!$("#side")||!BC||BC.kind!=="xc"){
       $("#app").innerHTML=playLayout();
-      mountBoard({kind:"xc",strokes:()=>NET.my,canDraw:k=>k<3,
+      mountBoard({kind:"xc",strokes:()=>NET.my,
         mode:()=>{const G=curG();if(!isTvt(G)||G.phase!=="xdraw"||G.paused)return"view";const m=myIdx(G),x=tvTeam(G,m);return x>=0&&G.enc[x]===m&&!G.done[x]?"draw":"view";},
-        view:()=>{const G=curG();if(!isTvt(G)||!G.code)return{n:4};const m=myIdx(G),x=tvTeam(G,m),c=G.code[x>=0?x:0];return{n:4,nonum:true,words:[...c.map(d=>`${d+1} · ${G.kw[x>=0?x:0][d]}`),"код "+c.map(d=>d+1).join("·")],show:"all",lab:.5,asked:null,active:-1,ring:-1};},
-        onStroke:()=>pubBoard()});
+        view:()=>({n:1,asked:null,words:null,show:"none",active:-1,ring:-1}),onStroke:()=>pubBoard()});
     }
-    setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());const tb=$("#tcbox");if(tb)tb.scrollTop=tb.scrollHeight;repaint();return;
+    setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());tb();repaint();return;
   }
   if(!$("#side")||BC||!$("#wrap.xcwrap")){BC=null;$("#app").innerHTML=`<div class="play"><div class="boardwrap xcwrap" id="wrap"></div><aside class="side card" id="side"></aside></div>`;}
-  const wr=$("#wrap"),h=xcWrapHTML(g,me);if(wr._h!==h){const sy=wr.scrollTop;wr._h=h;wr.innerHTML=h;wr.scrollTop=sy;const f=$("#xcf");if(f){
-    f.onclick=e=>{const G=curG();if(!isTvt(G)||G.phase!=="xclaim")return;const m=myIdx(G),x=tvTeam(G,m);if(x<0||G.enc[x]!==m||G.cl[x]>=G.claims[x])return;const k=xcFieldCell(f,e);if(k>=0&&G.cells[k].o<0){doAct("xclaim",k);sfx("pick");}};
-    f.onmousemove=e=>{const G=curG();const m=myIdx(G),x=tvTeam(G,m),can=isTvt(G)&&G.phase==="xclaim"&&x>=0&&G.enc[x]===m&&G.cl[x]<G.claims[x];const k=can?xcFieldCell(f,e):-1;if(k!==(APP.xcHover??-1)){APP.xcHover=k;f.style.cursor=k>=0?"pointer":"";xcPaintField(f,G,k);}};
-    f.onmouseleave=()=>{APP.xcHover=-1;const G=curG();if(isTvt(G))xcPaintField(f,G,-1);};}}
-  setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());const tb=$("#tcbox");if(tb)tb.scrollTop=tb.scrollHeight;requestAnimationFrame(xcPaintAll);
+  const wr=$("#wrap"),h=xcWrapHTML(g,me);if(wr._h!==h){const sy=wr.scrollTop;wr._h=h;wr.innerHTML=h;wr.scrollTop=sy;}
+  setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());tb();requestAnimationFrame(xcPaintAll);
 }
 /* Тикер ведущего в Web Worker: фоновые вкладки не замедляют его так сильно, как обычный setInterval */
 const TVW={w:null};
@@ -1376,7 +1365,7 @@ function hostTicks(){if(!isAuth()||!HOST.G)return;const G=HOST.G;
 function hostWorker(){if(TVW.w!==null)return;try{const u=URL.createObjectURL(new Blob(["setInterval(()=>postMessage(0),400)"],{type:"text/javascript"}));TVW.w=new Worker(u);TVW.w.onmessage=hostTicks;TVW.w.onerror=()=>{try{TVW.w.terminate();}catch(e){}TVW.w=false;};}catch(e){TVW.w=false;}}
 setInterval(()=>{
   if(isAuth()&&HOST.G){hostWorker();if(!TVW.w)hostTicks();}
-  const g=APP.view==="online"?curG():null;if(!isTvt(g)||!g.cells)return;
+  const g=APP.view==="online"?curG():null;if(!isTvt(g)||!g.kw)return;
   const b=$("#xcbar"),s=$("#xcsec");if(b&&s){const d=xcDur(g)*1000,l=xcLeft(g);b.style.width=(d?Math.round(l/d*100):0)+"%";s.textContent=Math.ceil(l/1000);}
 },250);
 document.addEventListener("input",e=>{const x=e.target&&e.target.dataset&&e.target.dataset.xcin;if(x!=null){APP.xcFin=APP.xcFin||[];APP.xcFin[+x]=e.target.value;}});
@@ -2024,11 +2013,14 @@ function seatClaims(G){
 function hostProcess(){
   const G=HOST.G;if(!G||!G.players)return;let changed=seatClaims(G);
   for(const p of peersIn(HOST.code)){
-    const pr=p.presence,a=pr.act;if(!a||!pr.pid||pr.pid===PID)continue;
-    if(NET.seen[pr.pid]===a.n)continue;if(G.paused&&a.type!=="pause")continue;NET.seen[pr.pid]=a.n;
+    const pr=p.presence;if(!pr.pid||pr.pid===PID)continue;
+    /* Игрок мог сделать несколько действий подряд: в презенсе лежат последние, обрабатываем все новые по порядку */
+    const list=(Array.isArray(pr.acts)&&pr.acts.length?pr.acts:(pr.act?[pr.act]:[])).filter(a=>a&&a.n>(NET.seen[pr.pid]||0)).sort((x,y)=>x.n-y.n);
+    for(const a of list){
+    if(G.paused&&a.type!=="pause")break;NET.seen[pr.pid]=a.n;
     if(a.r!==G.round)continue;
     if(isPhone(G)){const i=G.players.findIndex(x=>x.pid===pr.pid);if(i>=0&&(a.type==="pdone"||a.type==="punready")){applyPhone(G,a.type,a.arg,i);changed=true;}continue;}
-    if(isTvt(G)){const i=G.players.findIndex(x=>x.pid===pr.pid);if(i>=0&&["xdone","xvote","xclaim","xfw","xbest"].includes(a.type)){applyTvt(G,a.type,a.arg,i);changed=true;}continue;}
+    if(isTvt(G)){const i=G.players.findIndex(x=>x.pid===pr.pid);if(i>=0&&["xdone","xvote","xfw","xbest"].includes(a.type)){applyTvt(G,a.type,a.arg,i);changed=true;}continue;}
     if(isSpy(G)){const i=G.players.findIndex(x=>x.pid===pr.pid);if(i>=0&&["sdone","fline","svote","sguess","snext","fskip"].includes(a.type)){applySpy(G,a.type,a.arg,i);changed=true;}continue;}
     if(isCroc(G)){const i=G.players.findIndex(x=>x.pid===pr.pid);if(i>=0&&["cgo","cswap","cguess","cgive","cnext"].includes(a.type)){applyCroc(G,a.type,a.arg,i);changed=true;}continue;}
     if(["pick","reveal","ok","no","dans","dacc","dnext","joker","guessCell","cans"].includes(a.type)&&(G.phase!=="ask"||a.t!==G.turn))continue;
@@ -2049,6 +2041,7 @@ function hostProcess(){
     else if(a.type==="startDict"){if(G.phase!=="draw"||G.w>=0)continue;applyAct(G,"startDict");D.left=D.pace*1000;}
     else if(a.type==="pause"){if(G.phase!=="draw")continue;applyAct(G,"pause");}
     changed=true;
+    }
   }
   if(changed){publishHost();onState();}
 }
@@ -2071,7 +2064,9 @@ function pubBoard(now){
 }
 function sendAct(type,arg){
   const g=curG();if(!g)return;
-  setPresence({act:{n:Date.now()+Math.floor(Math.random()*1000)/1000,type,arg:arg??null,r:g.round,t:g.turn}});
+  const a={n:Date.now()+Math.floor(Math.random()*1000)/1000,type,arg:arg??null,r:g.round,t:g.turn},now=Date.now();
+  NET.actQ=(NET.actQ||[]).filter(x=>now-x.n<30000).concat([a]).slice(-6);
+  setPresence({act:a,acts:NET.actQ});
   if(type==="pick")sfx("pick");
 }
 const hearWords=g=>g&&g.auto&&(amDrawer(g)||PREF.speakAll);
@@ -2427,11 +2422,9 @@ function doAct(type,arg){
 }
 const ACT={
   react(i){const now=Date.now();if(now-rxLast<700)return;rxLast=now;const k=/^\d+$/.test(String(i))?+i:String(i).slice(0,24);spawnRx(k,"Вы");NET.rxCount=NET.rxCount||{};NET.rxCount.me=(NET.rxCount.me||0)+1;if(APP.view==="online")setPresence({rx:{n:now,i:k}});},
-  xcDone(){doAct("xdone");},xcBest(k){doAct("xbest",k);sfx("pick");},
-  tcSend(){tcSend(APP.tcDraft||"");},tcQuick(x){tcSend(TC_QUICK[+x]||"");},xcSkip(){doAct("xskip");},xcNext(){doAct("xnext");},
-  xcDig(a){const g=curG();if(!isTvt(g))return;const R=APP.xcP&&APP.xcP.r===g.round?APP.xcP:(APP.xcP={r:g.round,o:[],x:[]}),k=a[0],d=+a.slice(1);if(R[k].length<3&&!R[k].includes(d))R[k].push(d);renderTvt(g);},
-  xcClr(k){if(APP.xcP)APP.xcP[k]=[];const g=curG();if(isTvt(g))renderTvt(g);},
-  xcSend(){const g=curG();if(!isTvt(g)||!APP.xcP)return;doAct("xvote",{o:APP.xcP.o.map(d=>d+1).join(""),x:APP.xcP.x.map(d=>d+1).join("")});sfx("pick");},
+  xcDone(){doAct("xdone");},xcBest(k){doAct("xbest",k);sfx("pick");},xcSkip(){doAct("xskip");},xcNext(){doAct("xnext");},
+  xcPick(a){const[k,v]=String(a).split(":");doAct("xvote",{k,v:+v});sfx("pick");},
+  tcSend(){tcSend(APP.tcDraft||"");},tcQuick(x){tcSend(TC_QUICK[+x]||"");},
   xcFin(){const v=[0,1,2,3].map(j=>{const el=$("#xcf"+j);return el?el.value:(APP.xcFin||[])[j]||"";});doAct("xfw",v);},
   spyDone(){doAct("sdone");},spyVote(i){doAct("svote",+i);},spyReveal(){doAct("sreveal");},spyNext(){doAct("snext");},faSkip(){doAct("fskip");},
   spyGuess(){const el=$("#sgIn");const t=clean(el?el.value:"");if(!t){el&&el.focus({preventScroll:true});return;}doAct("sguess",t);},
@@ -2695,7 +2688,7 @@ function renderStatus(){
   if(APP.view==="hostcode"){s.innerHTML="Экран ведущего";return;}
   if(!g||!g.players||g.phase==="lobby"||g.phase==="final"){s.innerHTML=APP.view==="online"&&NET.code?`Лобби <b>${esc(NET.code)}</b>`:"";return;}
   if(isPhone(g)){s.innerHTML=g.phase==="pstep"?`Испорченный телефон · шаг <b>${g.step+1} из ${g.steps}</b> · <b>${pKind(g.step)==="d"?"рисуем":"угадываем"}</b>`:`Испорченный телефон · <b>смотрим цепочки</b>`;return;}
-  if(isTvt(g)){s.innerHTML=`Перехват · раунд <b>${g.round+1} из ${g.rounds}</b> · <b>${({xdraw:"шифруем рисунками",xguess:"разгадываем коды",xclaim:"захват поля",xfin:"финал",xend:"итоги"})[g.phase]||""}</b>`;return;}
+  if(isTvt(g)){s.innerHTML=`Перехват · раунд <b>${g.round+1} из ${g.rounds}</b> · <b>${({xdraw:"шаг 1: рисуем",xguess:"шаг 2: угадываем",xres:"шаг 3: итог",xfin:"финал",xend:"итоги"})[g.phase]||""}</b>`;return;}
   if(isSpy(g)){s.innerHTML=`${g.mode===8?"Шпион":"Фальшивый художник"} · раунд <b>${g.round+1} из ${g.rounds}</b> · <b>${({sdraw:"рисуют все",fdraw:"рисуем по линии",svote:"голосование",srev:"итоги раунда"})[g.phase]||""}</b>`;return;}
   if(isFast(g)){s.innerHTML=`Быстрый · раунд <b>${g.round+1} из ${g.rounds}</b> · ${g.phase==="draw"?"<b>рисуют все</b>":g.phase==="ask"?"поле <b>"+esc(g.players[gDrawer(g)].name)+"</b> ("+(gDrawer(g)+1)+" из "+g.players.length+")":"итоги раунда"} · <b>${LEVEL[g.lvl]||""}</b>`;return;}
   if(isCroc(g)){s.innerHTML=`Крокодил наоборот · ход <b>${g.round+1} из ${g.rounds}</b> · рисует <b>${esc(g.players[g.cr.d].name)}</b>`;return;}
@@ -2980,7 +2973,7 @@ const ACHS=[["debut","🎉","Дебют","Сыграть первую игру �
   ["sniper","🎯","Снайпер","3 раза подряд найти клетку на перемешанном поле"],["minimal","✏️","Минималист","Рисунок в один штрих, который узнали"],
   ["trap","🦊","Ловушка","Как спрашивающий получить 3 очка за один раунд"],["eye","🔍","Знаток почерка","Угадать 3 авторов в «Угадай автора» за игру"],
   ["telepath","📞","Телепат","Точно угадать рисунок в «Испорченном телефоне»"],["lonewolf","🐺","Одиночка","В Дуэли трижды вспомнить то, что не вспомнил соперник"],
-  ["tvsniper","🕵","Перехватчик","В «Перехвате» дважды верно перехватить код соперников"],["tvghost","🧱","Нерушимый шифр","В «Перехвате» дважды зашифровать код так, что свои поняли, а соперники нет"],["tvkey","📏","Линия фронта","В «Перехвате» ваша команда собрала линию из 5 клеток"],
+  ["tvsniper","🕵","Перехватчик","В «Перехвате» дважды верно перехватить рисунок соперников"],["tvghost","🧱","Нерушимый шифр","В «Перехвате» дважды нарисовать подсказку, которую свои поняли, а соперники не перехватили"],["tvkey","🔑","Все ключи","В «Перехвате» ваша команда угадала все 4 слова соперников в финале"],
   ["kidstar","⭐","Юный художник","Сыграть игру в детском режиме"],["nohost","🤝","Сами с усами","Сыграть игру без ведущего"]];
 const ACH={key:"",run:{},find:{},ask:{},eye:{},solo:{},askRound:-1,session:[]};
 function achReset(key){Object.assign(ACH,{key,run:{},find:{},ask:{},eye:{},solo:{},askRound:-1,session:[]});}
@@ -2995,8 +2988,8 @@ function achTrack(g,L,local){
   const key=(g.gid||"loc")+"|"+g.players.map(p=>p.name).join(",");if(ACH.key!==key)achReset(key);
   const me=myIdx(g),mine=i=>local||i===me,un=(i,id)=>{if(i>=0&&mine(i))achUnlock(g,i,id,local);};
   if(g.round!==ACH.askRound){ACH.ask={};ACH.askRound=g.round;}
-  if(isTvt(g)){if(me>=0&&g.pst&&L.pst&&g.cells&&L.cells){const t=g.team[me];
-      if(g.pst[me].icp>=2&&L.pst[me].icp<2)un(me,"tvsniper");if(g.pst[me].enc>=2&&L.pst[me].enc<2)un(me,"tvghost");if(xcLineN(g,t)>xcLineN(L,t))un(me,"tvkey");}return;}
+  if(isTvt(g)){if(me>=0&&g.pst&&L.pst&&g.kw){const t=g.team[me];
+      if(g.pst[me].icp>=2&&L.pst[me].icp<2)un(me,"tvsniper");if(g.pst[me].enc>=2&&L.pst[me].enc<2)un(me,"tvghost");if(g.phase==="xend"&&L.phase!=="xend"&&g.finHit&&g.finHit[t].every(Boolean))un(me,"tvkey");}return;}
   if(isPhone(g)){if(g.phase==="preveal"&&L.phase!=="preveal")g.chains.forEach(ch=>ch.e.forEach((en,st)=>{if(en&&en.ok)un(en.p,"telepath");}));}
   else if(isDuel(g)){if(g.dok&&L.dok&&g.round===L.round){const up=g.players.map((_,i)=>(g.dok[i]||0)>(L.dok[i]||0));
       if(up.filter(Boolean).length===1){const i=up.indexOf(true);ACH.solo[i]=(ACH.solo[i]||0)+1;if(ACH.solo[i]>=3)un(i,"lonewolf");}
@@ -3092,14 +3085,14 @@ function finalHTML(g,o){
   const pod=[order[1],order[0],order[2]].map((x,k)=>x?`<div class="pod ${k===1?"p1":""}">${avatar(x.p.name,x.i,"lg")}<span>${esc(x.p.name)}</span><div class="bar" style="height:${[90,130,64][k]}px">${x.s}</div></div>`:"<div></div>").join("");
   let place=0,prev=null;
   return `<div class="final card pad">
-    <span class="art art-hero">${ART.trophy}</span><h3 style="text-align:center">Игра окончена</h3><h2 style="font-size:30px;margin-top:6px;text-align:center">${isTvt(g)&&g.cells?(()=>{const s=[xcPts(g,0),xcPts(g,1)];return s[0]===s[1]?"Ничья команд: "+s[0]+" : "+s[1]:"Победа: "+TV_NAME[s[0]>s[1]?0:1]+" "+Math.max(...s)+" : "+Math.min(...s);})():win.length>1?"Ничья: "+win.map(w=>esc(w.p.name)).join(" и "):"Победа: "+esc(win[0].p.name)}</h2>
-    ${g.teams?teamsHTML(g):""}${isTvt(g)&&g.cells?xcTeamsHTML(g):""}<div class="podium">${pod}</div>${seriesHTML(g.series)}${fameHTML(g.fame,g.series)}${titlesHTML(g)}${achSessionHTML()}${galHTML()}
+    <span class="art art-hero">${ART.trophy}</span><h3 style="text-align:center">Игра окончена</h3><h2 style="font-size:30px;margin-top:6px;text-align:center">${isTvt(g)&&g.kw?(()=>{const s=[xcPts(g,0),xcPts(g,1)];return s[0]===s[1]?"Ничья команд: "+s[0]+" : "+s[1]:"Победа: "+TV_NAME[s[0]>s[1]?0:1]+" "+Math.max(...s)+" : "+Math.min(...s);})():win.length>1?"Ничья: "+win.map(w=>esc(w.p.name)).join(" и "):"Победа: "+esc(win[0].p.name)}</h2>
+    ${g.teams?teamsHTML(g):""}${isTvt(g)&&g.kw?xcTeamsHTML(g):""}<div class="podium">${pod}</div>${seriesHTML(g.series)}${fameHTML(g.fame,g.series)}${titlesHTML(g)}${achSessionHTML()}${galHTML()}
     <div class="rank">${order.map((x,k)=>{if(x.s!==prev){place=k+1;prev=x.s;}return `<div class="rk"><span class="pl">${place}</span>${avatar(x.p.name,x.i,"sm")}<span>${esc(x.p.name)}</span><span class="ps">${x.s}</span></div>`;}).join("")}</div>
     <div class="row" style="margin-top:20px">${o.admin?`${o.online?`<button class="btn grow" type="button" data-act="rematch">Реванш: те же настройки</button><button class="btn line grow" type="button" data-act="again">В лобби</button>`:`<button class="btn grow" type="button" data-act="again">Реванш</button>`}`:`<p class="note grow">Ведущий может начать реванш или новую игру.</p>`}
     <button class="btn line grow" type="button" data-act="${o.online?"leave":"goLocal"}">${o.online?"Выйти из лобби":"Изменить игроков"}</button></div></div>`;
 }
 const MODES={8:["Шпион","У всех одно слово, у шпиона похожее. Все рисуют, потом голосуют, у кого слово другое."],9:["Фальшивый художник","Общий рисунок по одной линии. Один не знает слова и притворяется."],7:["Быстрый","Без ведущего. Все рисуют одновременно, у каждого свои слова. Потом по очереди вспоминают каждое поле."],6:["Крокодил наоборот","Один рисует слово, остальные пишут догадки. Кто быстрее угадал, тот больше получил."],0:["Классика","Один рисует слова по памяти, остальные по очереди спрашивают клетки."],3:["Дуэль","Все рисуют одни и те же слова, потом вспоминают по своим полям. Можно вдвоём без ведущего."],
-  4:["Перехват","Команда на команду. Шифруйте код рисунками, перехватывайте чужой и захватывайте поле 5×5"],5:["Лестница","Как классика, но уровень у каждого свой: вспомнил 80% и больше — слова сложнее, меньше 40% — проще."],
+  4:["Перехват","Команда на команду. Рисуйте подсказки к своим секретным словам так, чтобы свои поняли, а соперники не перехватили"],5:["Лестница","Как классика, но уровень у каждого свой: вспомнил 80% и больше — слова сложнее, меньше 40% — проще."],
   1:["Чужие рисунки","Все рисуют одно и то же, а отвечают по полю соседа. Верно: очко обоим. Можно перемешать клетки."],2:["Испорченный телефон","Рисунок, догадка, рисунок догадки… В конце смотрим, во что превратились слова."]};
 const MODE_N={0:"2–10",1:"3–10",2:"3–10",3:"1×1 или 2×2",4:"команды, от 3×3",5:"2–10",6:"3–10",7:"3–10",8:"4–10",9:"4–10"};
 function modeChips(scope,cur,ids){return `<div class="modepick">${ids.map(id=>`<button type="button" class="opt" data-act="set" data-key="mode" data-scope="${scope}" data-arg="${id}" aria-pressed="${id===cur}"><b>${MODES[id][0]}${scope==="lobby"&&MODE_N[id]?`<small class="mn">${MODE_N[id]}</small>`:""}</b><span>${MODES[id][1]}</span></button>`).join("")}</div>`;}
@@ -3108,7 +3101,7 @@ function modeHowHTML(g){
   if(g.mode===3)return `<p class="pill">Дуэль${g.duelHost===0?" без ведущего":""}</p>`+st([g.duelHost===0?"Слова появляются прямо на поле рядом с клеткой: номер и слово. Темп задан заранее.":"Ведущий диктует номер клетки и слово. Все рисуют одновременно, каждый на своём поле.",
     "Потом выбирается клетка, и все вспоминают, что в ней было.",g.duelHost===0?"Ответ пишете текстом, проверка автоматическая. Написали по-другому (например, «котик» вместо «кот»)? Соперник может засчитать.":"Отвечаете вслух, ведущий отмечает, кто вспомнил.",
     "Вспомнил: +1. Вспомнил только ты: +2."])+`<p class="note">Раундов: ${g.times}, вопросов за раунд: ${g.duelQ>=25?"все клетки":g.duelQ}.</p>`;
-  if(g.mode===4)return `<p class="pill">Перехват</p>`+st(["У каждой команды 4 секретных слова. Каждый раунд шифровальщик получает код из 3 цифр и рисует 3 подсказки-ассоциации.","Все видят рисунки обеих команд. Свои разгадывают свой код, соперники пытаются его перехватить.","Поняли свой код: 2 флажка на поле 5×5. Перехватили чужой: 1 флажок. Линия из 5 клеток: +5.","В финале угадайте секретные слова соперников: +3 за каждое."]);
+  if(g.mode===4)return `<p class="pill">Перехват</p>`+st(["У каждой команды 4 секретных слова. Каждый раунд один игрок команды получает одно из них и рисует подсказку: не само слово, а то, что с ним связано.","Свои нажимают карточку, к какому слову рисунок. Соперники нажимают, к какой из ваших карточек «?» он относится: это перехват.","Рисунок ложится под свою карточку. Под карточками копятся рисунки, и перехватывать становится легче.","В финале угадайте 4 слова соперников. Свои поняли: +1, перехват: +2, слово в финале: +2."]);
   return `<p class="pill">Лестница</p>`+st(["Ведущий диктует номер клетки и слово, рисующий рисует по памяти.","Остальные по очереди спрашивают клетки, как в классике.","Уровень слов у каждого свой. Вспомнил 80% и больше: в следующий раз слова сложнее. Меньше 40%: проще."]);
 }
 function jokerHTML(g,o){
@@ -3217,9 +3210,9 @@ function lobbyModeHTML(){
   const vAnsF=`<div class="field"><label>Как отвечать</label>${segHTML("vAns","lobby",[[1,"Вслух"],[0,"Текстом"]],L.vAns??1)}<p class="note">${(L.vAns??1)?"Рисующий называет слово вслух и открывает его, а спросивший (или вы как создатель лобби) жмёт «Верно» или «Неверно».":"Рисующий пишет ответ: совпало, и очко засчитается само, иначе решает спросивший или вы."}</p></div>`;
   if(m===4){const lp=lobbyPlayers(),to=teamOrder(lp,L.tseed||0),tm=[0,1].map(t=>to.filter((_,i)=>i%2===t).map(p=>esc(p.name)));
     return h+`<div class="field"><label>Команды</label><p class="note"><b style="color:${TV_COL[0]}">${TV_NAME[0]}:</b> ${tm[0].join(", ")||"—"}<br><b style="color:${TV_COL[1]}">${TV_NAME[1]}:</b> ${tm[1].join(", ")||"—"}</p>${lp.length>=2?`<button class="linkbtn" type="button" data-act="teamShuffle">Перемешать команды</button>`:""}${lp.length<6?`<p class="crok" style="color:var(--no,#e5483f)">Нужно минимум 6 игроков (по 3 в команде). Сейчас: ${lp.length}.</p>`:""}
-      <p class="note">Вы тоже играете. Нужно минимум 6 игроков: по 3 в команде. У каждой команды 4 секретных слова. Шифровальщик (по очереди) рисует 3 подсказки к коду, свои разгадывают, соперники перехватывают. За успех ставите флажки на общее поле 5×5. Голос не нужен: ответ команды решает большинство.</p></div>
-    <div class="field"><label>Раундов</label>${segHTML("xR","lobby",[[6,"6"],[8,"8"],[10,"10"]],L.xR||8)}<p class="note">Игра кончится раньше, если поле заполнится.</p></div>
-    <div class="split" style="gap:20px"><div class="field"><label>Время на шифр</label>${segHTML("xT","lobby",[[45,"45 с"],[60,"60 с"],[90,"90 с"]],L.xT||60)}</div><div class="field"><label>Время на разгадку</label>${segHTML("xG","lobby",[[30,"30 с"],[40,"40 с"],[60,"60 с"]],L.xG||40)}</div></div>`;}
+      <p class="note">Вы тоже играете. Нужно минимум 6 игроков: по 3 в команде. У каждой команды 4 секретных слова. Каждый раунд один из команды рисует подсказку к одному слову. Свои нажимают карточку со словом, соперники пытаются угадать, к какой из ваших карточек «?» он относится. Пример: слово «море», рисунок рыбы. Свои сразу поймут, а соперники через пару раундов заметят, что под карточкой 2 одни рыбы и волны. Голос не нужен: ответ команды решает большинство.</p></div>
+    <div class="field"><label>Раундов</label>${segHTML("xR","lobby",[[6,"6"],[8,"8"],[10,"10"]],L.xR||8)}</div>
+    <div class="split" style="gap:20px"><div class="field"><label>Время на рисунок</label>${segHTML("xT","lobby",[[30,"30 с"],[45,"45 с"],[60,"60 с"]],L.xT||45)}</div><div class="field"><label>Время на ответ</label>${segHTML("xG","lobby",[[20,"20 с"],[30,"30 с"],[45,"45 с"]],L.xG||30)}</div></div>`;}
   if(m===8||m===9)return h+`${m===8?`<div class="field"><label>Время на рисунок</label>${segHTML("spyT","lobby",[[45,"45 с"],[60,"60 с"],[90,"90 с"]],L.spyT||60)}</div>`:""}
     <div class="field"><label>Раундов</label>${segHTML("times","lobby",[[2,"2"],[3,"3"],[4,"4"],[5,"5"]],L.times)}<p class="note">${m===8?"Вы тоже играете. Каждому показывается его слово; у шпиона оно похожее, но другое. Никто не знает, кто шпион, даже он сам. Пойман: +1 каждому, кто за него голосовал. Не пойман: шпиону +3. Пойманный может угадать слово остальных и забрать +2.":"Вы тоже играете. Все по очереди проводят по одной линии на общем рисунке, 2 круга. Один игрок слова не знает. Потом голосование. Пойман: +1 угадавшим, и он может угадать слово за +2. Не пойман: ему +3."} Нужно минимум 3 игрока, веселее от 4.</p></div>`;
   if(m===7)return h+`<div class="field"><label>Время на одно слово</label>${paceCtl(L.pace,"lobby")}<p class="note">Вы тоже играете. Если выбрано «Вручную», будет 6 секунд на слово.</p></div>${vAnsF}
