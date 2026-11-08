@@ -223,6 +223,7 @@ details[open] summary{margin-bottom:10px}
 .xcard.sel{border-color:var(--tc);box-shadow:0 0 0 3px color-mix(in srgb,var(--tc) 30%,transparent)}.xcard.right{border-color:#2fa45e;box-shadow:0 0 0 3px rgba(47,164,94,.3)}.xcard.wrong{border-color:#e5483f}
 .xcl{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.xcl b{color:var(--tc);margin-right:4px}
 .xcv{display:flex;flex-wrap:wrap;gap:2px}.xth{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:4px}.xth canvas{width:100%;aspect-ratio:5/4;display:block;border-radius:6px}.xth em{grid-column:1/-1;font-size:12px;color:var(--muted);font-style:normal}
+.xnh{margin:2px 0 -2px}.xnotes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.xnotes .inp{width:100%;box-sizing:border-box;padding:7px 9px;font-size:14px}.xnro{display:block;padding:7px 9px;border:1px dashed var(--line);border-radius:10px;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.xnotes small{display:block;font-size:11px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xrules{margin-top:6px}.xrules summary{cursor:pointer;font-weight:700}.xrules ol{margin:8px 0 6px 18px;padding:0;display:grid;gap:6px;font-size:14px}
 .tcbox{max-height:170px;overflow:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px;font-size:14px;padding-right:4px}.tcbox p{margin:0;line-height:1.35;word-break:break-word}.tcbox p.me{opacity:.85}
 .xcbest{margin-top:16px}.xcbest h3{margin-bottom:8px}.xcbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
@@ -1266,6 +1267,15 @@ function tcHTML(g){const me=myIdx(g),t=tvTeam(g,me);if(t<0||g.phase==="final")re
     <div class="row"><input class="inp grow" id="tcIn" maxlength="140" autocomplete="off" placeholder="Сообщение своей команде" value="${esc(APP.tcDraft||"")}"><button class="btn sm" type="button" data-act="tcSend">→</button></div></div>`;}
 document.addEventListener("input",e=>{if(e.target&&e.target.id==="tcIn")APP.tcDraft=e.target.value;});
 document.addEventListener("keydown",e=>{if(e.target&&e.target.id==="tcIn"&&e.key==="Enter"){e.preventDefault();tcSend(e.target.value);}});
+/* ---------- Догадки под карточками соперников: пишет команда, видят все игроки ---------- */
+const XN={mine:null,t:null};
+function xnTeam(g,t){const out=[0,1,2,3].map(()=>({x:"",ts:0,i:-1}));if(t==null||t<0)return out;
+  const add=(pid,xn)=>{if(!xn||xn.g!==g.gid||!Array.isArray(xn.v))return;const i=g.players.findIndex(p=>p.pid===pid);if(i<0||g.team[i]!==t)return;
+    xn.v.forEach((e,j)=>{if(j<4&&Array.isArray(e)&&+e[1]>out[j].ts)out[j]={x:String(e[0]||"").slice(0,40),ts:+e[1],i};});};
+  peersIn(NET.code).forEach(p=>{if(p.presence.pid!==PID)add(p.presence.pid,p.presence.xn);});if(XN.mine)add(PID,XN.mine);return out;}
+function xnSet(j,val){const g=curG();if(!isTvt(g)||myIdx(g)<0)return;const v=XN.mine&&XN.mine.g===g.gid?XN.mine.v.map(e=>e.slice()):[0,1,2,3].map(()=>["",0]);
+  v[j]=[String(val||"").slice(0,40),Date.now()];XN.mine={g:g.gid,v};clearTimeout(XN.t);XN.t=setTimeout(()=>{setPresence({xn:XN.mine});},350);}
+document.addEventListener("input",e=>{const j=e.target&&e.target.dataset&&e.target.dataset.xnote;if(j!=null)xnSet(+j,e.target.value);});
 /* ---------- Отрисовка ---------- */
 function xcTeamsHTML(g){const s=[0,1].map(t=>xcPts(g,t));
   return `<div class="teams">${[0,1].map(t=>`<div class="team ${s[t]>s[1-t]?"lead":""}" style="border-left:4px solid ${TV_COL[t]}"><span>${TV_NAME[t]} · 🕵 ${g.tok.icp[t]}</span><b>${tvMemb(g,t).map(i=>esc(g.players[i].name)).join(", ")}</b><em>${s[t]}</em></div>`).join("")}</div>`;}
@@ -1297,7 +1307,9 @@ function xcPanelHTML(g,x,me){
       <span class="xcl">${label}${right?" ✓":""}${wrong?" ✗":""}</span>${vs?`<span class="xcv">${vs}</span>`:""}
       <span class="xth">${hist.map(e=>`<canvas data-xh="${e.r}:${e.p}" title="раунд ${e.r+1}${e.icp?" · перехвачен":""}"></canvas>`).join("")||`<em>${ph==="xend"||ph==="xfin"?"не рисовали":"пока пусто"}</em>`}</span></button>`;}).join("");
   return `<section class="xpanel" style="--tc:${TV_COL[x]}"><div class="xph"><b>${mine?"Ваша команда":"Соперники"}</b><span>${TV_NAME[x]}${showNew?" · рисует "+esc(P[enc].name):""}${ph==="xdraw"&&g.done[x]?" ✓ готово":""}</span></div>
-    ${showNew?`<div class="xnew"><canvas data-xn="${x}"></canvas></div>`:""}<p class="xq">${q}</p><div class="xcards">${cards}</div></section>`;
+    ${showNew?`<div class="xnew"><canvas data-xn="${x}"></canvas></div>`:""}<p class="xq">${q}</p><div class="xcards">${cards}</div>${!mine&&t>=0&&ph!=="xend"?(()=>{const N=xnTeam(g,t);
+      return `<p class="note xnh">✏️ Ваши догадки, что за слова у соперников (их видят все игроки):</p><div class="xnotes">${[0,1,2,3].map(j=>`<div><input class="inp" id="xn${j}" data-xnote="${j}" maxlength="40" autocomplete="off" placeholder="${j+1}: догадка…" value="${esc(N[j].x)}">${N[j].i>=0&&N[j].i!==me&&N[j].x?`<small>${esc(P[N[j].i].name)}</small>`:""}</div>`).join("")}</div>`;})()
+      :(()=>{const N=xnTeam(g,1-x);if(!N.some(n=>n.x))return"";return `<p class="note xnh">${mine?"👀 Соперники думают, что ваши слова:":`✏️ Догадки команды ${TV_NAME[1-x]}:`}</p><div class="xnotes ro">${N.map((n,j)=>`<div><span class="xnro">${n.x?esc(n.x):"—"}</span>${n.i>=0&&n.x?`<small>${esc(P[n.i].name)}</small>`:""}</div>`).join("")}</div>`;})()}</section>`;
 }
 function xcWrapHTML(g,me){const t=tvTeam(g,me),first=t>=0?t:0;
   let best="";if(g.phase==="xend")best=`<div class="xcbest"><h3>Лучший рисунок игры</h3><p class="note">Голосуйте за самую хитрую подсказку (за свою нельзя). Автору +2.</p><div class="xcbgrid">${xcCands(g).map(k=>{const[r,p]=k.split(":").map(Number),x=g.team[p],e=g.log[x].find(z=>z.r===r&&z.p===p),n=Object.values(g.best||{}).filter(v=>v===k).length,mine=(g.best||{})[me]===k;
@@ -1324,9 +1336,9 @@ function xcSide(g){
   }else if(ph==="xres"){const R=g.res;
     const line=x=>`<p><b style="color:${TV_COL[x]}">${TV_NAME[x]}</b>: рисунок ${t===x?"к слову «"+esc(g.kw[x][g.cur[x]])+"»":"к карточке "+(g.cur[x]+1)}. Свои ${R.own[x]?"поняли ✓ +"+XP.own:"не поняли ✗"}${g.round>0?`, перехват ${R.icp[1-x]?"🕵 удался: +"+XP.icp+" соперникам":"не удался"}`:""}.</p>`;
     body=`${head}<h3>Итог раунда</h3>${line(t>=0?t:0)}${line(t>=0?1-t:1)}${xcBar(g)}${skip}</div>`;
-  }else if(ph==="xfin"){const done=me>=0&&g.fin[me],vals=APP.xcFin||[];
-    body=`${head}<h3>Финал</h3><p>Какие 4 секретных слова у соперников? Подсказка: их рисунки под карточками.</p>${xcBar(g)}
-      ${t>=0?(done?`<p class="crok">Ответ отправлен. Ждём остальных.</p>`:`${[0,1,2,3].map(j=>`<div class="field"><label>Карточка ${j+1}</label><input class="inp" id="xcf${j}" data-xcin="${j}" maxlength="40" autocomplete="off" value="${esc(vals[j]||"")}"></div>`).join("")}<button class="btn big" type="button" data-act="xcFin">Отправить</button>`):""}
+  }else if(ph==="xfin"){const done=me>=0&&g.fin[me],vals=APP.xcFin||[],N=xnTeam(g,t);
+    body=`${head}<h3>Финал</h3><p>Какие 4 секретных слова у соперников? Подсказка: их рисунки под карточками. Догадки вашей команды уже вписаны, их можно поправить.</p>${xcBar(g)}
+      ${t>=0?(done?`<p class="crok">Ответ отправлен. Ждём остальных.</p>`:`${[0,1,2,3].map(j=>`<div class="field"><label>Карточка ${j+1}</label><input class="inp" id="xcf${j}" data-xcin="${j}" maxlength="40" autocomplete="off" value="${esc(vals[j]!=null?vals[j]:N[j].x)}"></div>`).join("")}<button class="btn big" type="button" data-act="xcFin">Отправить</button>`):""}
       <p class="note">Угаданное слово: +${XP.fin} команде (хватит одного верного ответа в команде) и +1 тому, кто угадал.</p>${skip}</div>`;
   }else if(ph==="xend"){const s=[0,1].map(x=>xcPts(g,x)),w=s[0]===s[1]?-1:s[0]>s[1]?0:1;
     body=`${head}<h2 style="font-size:22px">${w<0?"Ничья!":`Победа: <span style="color:${TV_COL[w]}">${TV_NAME[w]}</span>`}</h2>
@@ -1353,7 +1365,8 @@ function renderTvt(g){
     setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());tb();repaint();return;
   }
   if(!$("#side")||BC||!$("#wrap.xcwrap")){BC=null;$("#app").innerHTML=`<div class="play"><div class="boardwrap xcwrap" id="wrap"></div><aside class="side card" id="side"></aside></div>`;}
-  const wr=$("#wrap"),h=xcWrapHTML(g,me);if(wr._h!==h){const sy=wr.scrollTop;wr._h=h;wr.innerHTML=h;wr.scrollTop=sy;}
+  const wr=$("#wrap"),h=xcWrapHTML(g,me);if(wr._h!==h){const sy=wr.scrollTop,ae=document.activeElement,id=ae&&ae.id&&wr.contains(ae)?ae.id:null,ss=id?ae.selectionStart:0,se=id?ae.selectionEnd:0;wr._h=h;wr.innerHTML=h;wr.scrollTop=sy;
+    if(id){const el=document.getElementById(id);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(ss,se);}catch(e){}}}}
   setSide(xcSide(g)+rxBarHTML()+hostToolsHTML());tb();requestAnimationFrame(xcPaintAll);
 }
 /* Тикер ведущего в Web Worker: фоновые вкладки не замедляют его так сильно, как обычный setInterval */
